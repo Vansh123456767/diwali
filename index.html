@@ -23,7 +23,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#0a0618;font-family:sy
 #start .btn{margin-top:22px;padding:12px 34px;background:#ff9d00;color:#2a0a40;font-weight:800;border-radius:30px;font-size:20px}
 #toast{position:fixed;left:50%;bottom:140px;transform:translateX(-50%);display:none;background:rgba(40,16,70,.9);border:1px solid #ffb020;border-radius:10px;padding:9px 16px;font-size:15px;color:#fff;max-width:min(560px,90vw);text-align:center;z-index:6}
 #shop{position:fixed;inset:0;background:rgba(5,0,15,.7);display:none;align-items:center;justify-content:center;z-index:8}
-#shopbox{background:#241042;border:2px solid #ffb020;border-radius:14px;padding:18px 22px;width:min(480px,92vw)}
+#shopbox{max-height:86vh;overflow-y:auto;background:#241042;border:2px solid #ffb020;border-radius:14px;padding:18px 22px;width:min(480px,92vw)}
 #shopbox h2{margin:0 0 4px;color:#ffd36b}
 .row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.1)}
 .row small{color:#bda9e6;display:block}
@@ -34,12 +34,12 @@ html,body{margin:0;height:100%;overflow:hidden;background:#0a0618;font-family:sy
 </head>
 <body>
 <div id="game"></div>
-<div id="hud" class="panel">Coins: <b id="coins">0</b><br>Vehicle: <b id="veh">Car</b><br>Condition: <b id="cond">100%</b><br><span id="spd">0 km/h</span></div>
+<div id="hud" class="panel">Coins: <b id="coins">0</b><br>Vehicle: <b id="veh">Car</b><br>Condition: <b id="cond">100%</b> &middot; Armor <b id="armor">0</b>/5<br><span id="spd">0 km/h</span></div>
 <div id="net" class="panel">Players here: <b id="players">1</b><br><small style="opacity:.75">(open a 2nd tab to test)</small></div>
 <div id="help" class="panel">
 <kbd>W A S D</kbd>/arrows drive &nbsp; <kbd>Space</kbd> handbrake (plane: climb) &nbsp; <kbd>Shift</kbd> nitro (plane: descend)<br>
 <kbd>1</kbd> Car <kbd>2</kbd> Truck <kbd>3</kbd> Scooter <kbd>4</kbd> Bike <kbd>5</kbd> Plane &nbsp; <kbd>F</kbd> rocket volley &nbsp; <kbd>G</kbd> pataka chain<br>
-<kbd>X</kbd> get out / get in &nbsp; <kbd>E</kbd> shop (near pink shop) &nbsp; <kbd>V</kbd> camera &nbsp; <kbd>M</kbd> mute &nbsp; <kbd>H</kbd> hide help
+<kbd>X</kbd> get out / get in &nbsp; <kbd>C</kbd> cheer (on foot) &nbsp; <kbd>E</kbd> shop (near pink shop) &nbsp; <kbd>V</kbd> camera &nbsp; <kbd>M</kbd> mute &nbsp; <kbd>H</kbd> hide help
 </div>
 <div id="prompt" class="panel">Press E to open the Diwali Shop</div>
 <div id="toast"></div>
@@ -62,8 +62,8 @@ const TAU=Math.PI*2;
 function angDiff(a,b){let d=(b-a)%TAU;if(d>Math.PI)d-=TAU;if(d<-Math.PI)d+=TAU;return d;}
 
 /* ================= SAVE ================= */
-const save={coins:0,up:{volley:0,auto:0,nitro:0,gold:0,magnet:0}};
-try{const s=JSON.parse(localStorage.getItem('dcs_save_v2')||'null');if(s){save.coins=s.coins|0;Object.assign(save.up,s.up||{});}}catch(e){}
+const save={coins:0,up:{volley:0,auto:0,nitro:0,gold:0,magnet:0},str:{car:0,truck:0,scooter:0,bike:0,plane:0}};
+try{const s=JSON.parse(localStorage.getItem('dcs_save_v2')||'null');if(s){save.coins=s.coins|0;Object.assign(save.up,s.up||{});Object.assign(save.str,s.str||{});}}catch(e){}
 function persist(){try{localStorage.setItem('dcs_save_v2',JSON.stringify(save));}catch(e){}}
 
 /* ================= RENDERER / SCENE ================= */
@@ -372,19 +372,64 @@ function updateObstacles(dt){
   }
 }
 
+/* ================= HUMANS (faceted low-poly man: t-shirt, shorts, bare arms and legs) ================= */
+const HG={},HM={};
+const SKINS=[0xc9976a,0xb87d4f,0x8d5a3a,0xe0b48a,0x6e4429],HAIRS=[0x1f1a17,0x2b1d14,0x3a2a1c,0x111111],SHORTS=[0x2b2b30,0x3a3550,0x4a3b2c,0x23323f];
+function hmat(c){return HM[c]||(HM[c]=new THREE.MeshLambertMaterial({color:c,flatShading:true}));}
+function hcyl(a,b,h,s){const k='c'+a+'_'+b+'_'+h+'_'+s;return HG[k]||(HG[k]=new THREE.CylinderGeometry(a,b,h,s||6));}
+function hsph(r,ws,hs,tl){const k='s'+r+'_'+ws+'_'+hs+'_'+(tl||0);return HG[k]||(HG[k]=tl?new THREE.SphereGeometry(r,ws,hs,0,TAU,0,tl):new THREE.SphereGeometry(r,ws,hs));}
+function hbox(w,h,d){const k='b'+w+'_'+h+'_'+d;return HG[k]||(HG[k]=new THREE.BoxGeometry(w,h,d));}
+function hpart(geo,m,x,y,z,parent,sx,sy,sz){const me=new THREE.Mesh(geo,m);me.position.set(x,y,z);if(sx)me.scale.set(sx,sy,sz);parent.add(me);return me;}
+function buildHuman(shirtC,shortsC,skinC,hairC){
+  const skin=hmat(skinC),sh=hmat(shirtC),st=hmat(shortsC),hair=hmat(hairC),shoe=hmat(0x1c1c22),sock=hmat(0xf2f2f2),dark=hmat(0x16120f);
+  const g=new THREE.Group(),body=new THREE.Group();g.add(body);
+  hpart(hcyl(0.3,0.22,0.72,6),sh,0,1.32,0,body,1,1,0.62);          // torso
+  hpart(hcyl(0.23,0.25,0.3,6),st,0,0.95,0,body,1,1,0.7);           // shorts / hips
+  hpart(hcyl(0.07,0.08,0.14,6),skin,0,1.73,0,body);                 // neck
+  hpart(hsph(0.19,8,6),skin,0,1.93,0,body,1,1.15,1.02);             // head
+  hpart(hsph(0.205,8,5,Math.PI*0.5),hair,0,1.95,-0.012,body,1,1.1,1.06); // hair cap
+  hpart(hsph(0.026,5,4),dark,-0.07,1.95,0.178,body);hpart(hsph(0.026,5,4),dark,0.07,1.95,0.178,body); // eyes
+  hpart(hbox(0.04,0.06,0.05),skin,0,1.9,0.19,body);                 // nose
+  hpart(hsph(0.04,5,4),skin,-0.19,1.92,0,body);hpart(hsph(0.04,5,4),skin,0.19,1.92,0,body); // ears
+  function leg(x){
+    const l=new THREE.Group();l.position.set(x,0.95,0);body.add(l);
+    hpart(hcyl(0.115,0.105,0.28,6),st,0,-0.14,0,l);
+    hpart(hcyl(0.095,0.08,0.2,6),skin,0,-0.38,0,l);
+    hpart(hcyl(0.08,0.06,0.42,6),skin,0,-0.69,0,l);
+    hpart(hcyl(0.065,0.065,0.05,6),sock,0,-0.9,0,l);
+    hpart(hbox(0.14,0.1,0.3),shoe,0,-0.95,0.06,l);
+    return l;
+  }
+  function arm(x){
+    const a=new THREE.Group();a.position.set(x,1.6,0);body.add(a);
+    hpart(hcyl(0.085,0.075,0.26,6),sh,0,-0.13,0,a);
+    const f=new THREE.Group();f.position.y=-0.26;a.add(f);
+    hpart(hcyl(0.07,0.055,0.3,6),skin,0,-0.15,0,f);
+    hpart(hbox(0.09,0.12,0.075),skin,0,-0.35,0,f);
+    return{a:a,f:f};
+  }
+  const A1=arm(-0.37),A2=arm(0.37);
+  g.scale.setScalar(0.92);
+  return{g:g,body:body,l1:leg(-0.12),l2:leg(0.12),a1:A1.a,a2:A2.a,f1:A1.f,f2:A2.f};
+}
+// swing = walk-cycle amount, up = 0..1 blend into the arms-raised cheer pose
+function poseHuman(h,swing,up){
+  h.l1.rotation.x=swing;h.l2.rotation.x=-swing;
+  h.a1.rotation.x=-swing*(1-up)*0.8;h.a2.rotation.x=swing*(1-up)*0.8;
+  h.a1.rotation.z=-up*2.3;h.a2.rotation.z=up*2.3;
+  h.f1.rotation.z=-up*1.1;h.f2.rotation.z=up*1.1;
+  h.f1.rotation.x=h.f2.rotation.x=-0.3*(1-up);
+}
+
 /* ================= PEOPLE ================= */
 const people=[];
 (function(){
   const cols=[0xe8567a,0x4a90e2,0xf5a623,0x7ed321,0xbd10e0,0xf8e71c,0xff6b6b,0x50e3c2];
   for(let i=0;i<130;i++){
-    const g=new THREE.Group();
-    box(0.55,0.8,0.32,mat(cols[(Math.random()*cols.length)|0]),0,1.15,0,g);
-    const head=new THREE.Mesh(new THREE.SphereGeometry(0.26,8,6),skinM);head.position.y=1.8;g.add(head);
-    box(0.5,0.12,0.4,mat(0x222233),0,2.05,0,g).visible=Math.random()<0.4;
-    const l1=box(0.2,0.75,0.22,mat(0x2a2a4a),-0.14,0.4,0,g),l2=box(0.2,0.75,0.22,mat(0x2a2a4a),0.14,0.4,0,g);
-    scene.add(g);
+    const h=buildHuman(cols[(Math.random()*cols.length)|0],SHORTS[(Math.random()*SHORTS.length)|0],SKINS[(Math.random()*SKINS.length)|0],HAIRS[(Math.random()*HAIRS.length)|0]);
+    scene.add(h.g);
     const horiz=Math.random()<0.5,road=((Math.random()*11)|0)-5,side=Math.random()<0.5?-1:1;
-    people.push({g:g,l1:l1,l2:l2,horiz:horiz,base:road*ROAD+side*9.5,off:0,along:rnd(-190,190),dir:Math.random()<0.5?-1:1,sp:rnd(1.3,2.4),ph:rnd(0,6),cheer:0,x:0,z:0});
+    people.push({g:h.g,h:h,up:0,horiz:horiz,base:road*ROAD+side*9.5,off:0,along:rnd(-190,190),dir:Math.random()<0.5?-1:1,sp:rnd(1.3,2.4),ph:rnd(0,6),cheer:0,x:0,z:0});
   }
 })();
 function updatePeople(dt){
@@ -401,7 +446,7 @@ function updatePeople(dt){
     if(p.cheer>0){p.cheer-=dt;if(p.cheer<0.6)y+=Math.abs(Math.sin(p.cheer*14))*0.45;}
     p.g.position.set(p.x,y,p.z);
     p.g.rotation.y=p.horiz?(p.dir>0?Math.PI/2:-Math.PI/2):(p.dir>0?0:Math.PI);
-    p.l1.rotation.x=Math.sin(p.ph)*0.6;p.l2.rotation.x=-Math.sin(p.ph)*0.6;
+    p.up+=((p.cheer>0?1:0)-p.up)*Math.min(1,dt*10);poseHuman(p.h,Math.sin(p.ph)*0.6,p.up);
   }
 }
 
@@ -634,6 +679,7 @@ function explode(x,y,z){
   burstLight.position.set(x,y,z);burstLight.color.setRGB(c0[0],c0[1],c0[2]);burstLightI=2.6;
   sfxBurst(x,y,z);
   for(const p of people)if(Math.random()<0.3)p.cheer=rnd(0.4,1.2);
+  if(WK.on&&Math.random()<0.5)WK.cheerT=rnd(1,1.8); // your man cheers at the fireworks too
 }
 function volley(remote){
   const n=Math.min(9,3+2*save.up.volley);
@@ -715,6 +761,7 @@ window.addEventListener('keydown',function(e){
   if(e.code==='KeyE'){if(shopOpen)toggleShop(false);else if(nearShop())toggleShop(true);return;}
   if(shopOpen)return;
   if(e.code==='KeyX'){toggleOnFoot();return;}
+  if(e.code==='KeyC'&&WK.on){WK.cheerT=2.5;return;}
   const m=/^Digit([1-5])$/.exec(e.code);if(m){pickVehicle(ORDER[+m[1]-1]);return;}
   if(e.code==='KeyF')volley(false);
   else if(e.code==='KeyG')patakaChain();
@@ -737,18 +784,21 @@ const SHOP=[
   {id:'magnet',name:'Coin Magnet',desc:'Collect coins from farther away',max:2,cost:l=>35+l*25},
   {id:'repair',name:'Repair Vehicle',desc:'Fix your current vehicle to 100%',repair:true,cost:()=>20}
 ];
+// one "Reinforce" upgrade per vehicle: each level cuts crash damage by 13% (max level 5 = 65% less damage)
+ORDER.forEach(function(t){SHOP.push({id:'str_'+t,str:t,name:'Reinforce '+DEFS[t].name,desc:'Takes less crash damage',max:5,cost:function(l){return 30+l*25;}});});
+function strMul(type){return 1-0.13*(save.str[type]|0);}
 function nearShop(){const A=actor();return A.y<4&&Math.hypot(A.x-shopPos.x,A.z-shopPos.z)<16;}
 function renderShop(){
   $('shopcoins').textContent=save.coins;const box=$('shoplist');box.innerHTML='';
   SHOP.forEach(function(it){
-    const rep=!!it.repair,lv=rep?0:(save.up[it.id]||0),maxed=rep?P.hp>=100:lv>=it.max,cost=it.cost(lv);
+    const rep=!!it.repair,lv=rep?0:(it.str?(save.str[it.str]|0):(save.up[it.id]||0)),maxed=rep?P.hp>=100:lv>=it.max,cost=it.cost(lv);
     const row=document.createElement('div');row.className='row';
-    row.innerHTML='<div><b>'+it.name+'</b> <small>'+(rep?'Condition '+Math.round(P.hp)+'%':'Lv '+lv+'/'+it.max)+' &middot; '+it.desc+'</small></div>';
+    row.innerHTML='<div><b>'+it.name+(it.str===P.type?' (current)':'')+'</b> <small>'+(rep?'Condition '+Math.round(P.hp)+'%':'Lv '+lv+'/'+it.max)+' &middot; '+it.desc+'</small></div>';
     const b=document.createElement('button');b.textContent=maxed?(rep?'Not needed':'Owned'):(rep?'Fix ':'Buy ')+cost;b.disabled=maxed||save.coins<cost;
     b.addEventListener('click',function(){
       if(maxed||save.coins<cost)return;
       if(rep){save.coins-=cost;persist();P.hp=100;HPS[P.type]=100;refreshDamage();dismissCrowd();sfxBuy();updateHUDcoins();renderShop();toast('Vehicle repaired!',2000);return;}
-      save.coins-=cost;save.up[it.id]=lv+1;persist();sfxBuy();
+      save.coins-=cost;if(it.str)save.str[it.str]=lv+1;else save.up[it.id]=lv+1;persist();sfxBuy();
       if(it.id==='gold'&&P.v)paintGold(P.v);
       updateHUDcoins();renderShop();
     });
@@ -876,17 +926,15 @@ function collidePlayer(){
 }
 
 /* ================= ON FOOT, DAMAGE & CROWD ================= */
-const WK={on:false,x:0,y:0,z:0,h:0,sp:0,ph:0,mesh:null,l1:null,l2:null};
+const WK={on:false,x:0,y:0,z:0,h:0,sp:0,ph:0,mesh:null,hum:null,up:0,cheerT:0};
 const crowd=[];
 let toastUntil=0;
 function actor(){return WK.on?WK:P;}
 function toast(msg,ms){const t=$('toast');t.textContent=msg;t.style.display='block';toastUntil=T+(ms||3000)/1000;}
-function makePerson(color){
-  const g=new THREE.Group();
-  box(0.55,0.8,0.32,mat(color),0,1.15,0,g);
-  const head=new THREE.Mesh(new THREE.SphereGeometry(0.26,8,6),skinM);head.position.y=1.8;g.add(head);
-  const l1=box(0.2,0.75,0.22,mat(0x2a2a4a),-0.14,0.4,0,g),l2=box(0.2,0.75,0.22,mat(0x2a2a4a),0.14,0.4,0,g);
-  scene.add(g);return{g:g,l1:l1,l2:l2};
+function makePerson(shirt,hero){
+  const h=hero?buildHuman(0x6f9aa8,0x2b2b30,0xc9976a,0x201813)  // the grey-blue t-shirt man
+              :buildHuman(shirt,SHORTS[(Math.random()*SHORTS.length)|0],SKINS[(Math.random()*SKINS.length)|0],HAIRS[(Math.random()*HAIRS.length)|0]);
+  scene.add(h.g);return h;
 }
 function blockedAt(x,z,pad){
   for(let i=0;i<buildings.length;i++){const b=buildings[i];if(Math.abs(x-b.x)<b.hw+pad&&Math.abs(z-b.z)<b.hd+pad)return true;}
@@ -903,7 +951,7 @@ function exitVehicle(){
   let pos=null;
   for(let i=0;i<tries.length;i++){const x=P.x+tries[i][0]*r,z=P.z+tries[i][1]*r;if(!blockedAt(x,z,0.6)){pos=[x,z];break;}}
   if(!pos)pos=[P.x+lx*r,P.z+lz*r];
-  if(!WK.mesh){const p=makePerson(0xff8a1f);WK.mesh=p.g;WK.l1=p.l1;WK.l2=p.l2;}
+  if(!WK.mesh){const p=makePerson(0,true);WK.mesh=p.g;WK.hum=p;}
   WK.x=pos[0];WK.z=pos[1];WK.h=P.h;WK.sp=0;WK.on=true;WK.mesh.visible=true;P.speed=0;
   sfxDoor();toast('On foot: W/S walk, A/D turn, Shift run. Press X near your vehicle to get back in.',4200);
 }
@@ -950,14 +998,16 @@ function updateWalker(dt){
   for(let i=0;i<ais.length;i++){const a=ais[i];if(pushCircle(a.x,a.z,r+a.r*0.9))a.pause=Math.max(a.pause,0.6);}
   for(let i=0;i<obstacles.length;i++){const o=obstacles[i],n=pushCircle(o.x,o.z,r+o.r);if(n){o.vx=-n[0]*2.5;o.vz=-n[1]*2.5;o.spin=rnd(-4,4);}}
   WK.ph+=dt*Math.abs(WK.sp)*1.8;
+  WK.cheerT-=dt;WK.up+=((WK.cheerT>0?1:0)-WK.up)*Math.min(1,dt*9);
   const sw=Math.sin(WK.ph)*0.7*Math.min(1,Math.abs(WK.sp)/3);
-  WK.l1.rotation.x=sw;WK.l2.rotation.x=-sw;
-  WK.mesh.position.set(WK.x,0.3,WK.z);WK.mesh.rotation.y=WK.h;
+  poseHuman(WK.hum,sw,WK.up);
+  if(WK.up>0.05){WK.hum.a1.rotation.x=Math.sin(T*9)*0.25*WK.up;WK.hum.a2.rotation.x=-Math.sin(T*9)*0.25*WK.up;}
+  WK.mesh.position.set(WK.x,0.3+Math.abs(Math.sin(T*8))*0.1*WK.up,WK.z);WK.mesh.rotation.y=WK.h;
 }
 // --- damage ---
 function damageVehicle(s){
   const before=P.hp;
-  P.hp=Math.max(0,P.hp-(14+22*s));HPS[P.type]=P.hp;
+  P.hp=Math.max(0,P.hp-(14+22*s)*strMul(P.type));HPS[P.type]=P.hp;
   refreshDamage();
   if(P.hp<=0&&before>0){
     sfxBreak();toast('Your vehicle broke down! Press X to get out. Fix it at the shop (E) or press 1-5 for another vehicle.',5500);
@@ -994,7 +1044,7 @@ function spawnCrowd(n,stay){
     }
     if(!ok2){sx=tx;sz=tz;}
     const p=makePerson(cols[(Math.random()*cols.length)|0]);
-    crowd.push({g:p.g,l1:p.l1,l2:p.l2,x:sx,z:sz,tx:tx,tz:tz,state:'walk',ph:Math.random()*6,hop:0,hopT:rnd(1,3),away:0,leave:0,stay:!!stay,watchT:rnd(9,15),face:0});
+    crowd.push({g:p.g,hum:p,up:0,x:sx,z:sz,tx:tx,tz:tz,state:'walk',ph:Math.random()*6,hop:0,hopT:rnd(1,3),away:0,leave:0,stay:!!stay,watchT:rnd(9,15),face:0});
   }
 }
 function dismissCrowd(){
@@ -1018,7 +1068,7 @@ function updateCrowd(dt){
       if(c.leave<=0){scene.remove(c.g);crowd.splice(i,1);continue;}
     }
     if(moving)c.ph+=dt*9;
-    const sw=moving?Math.sin(c.ph)*0.6:0;c.l1.rotation.x=sw;c.l2.rotation.x=-sw;
+    const sw=moving?Math.sin(c.ph)*0.6:0;c.up+=((c.hop>0?1:0)-c.up)*Math.min(1,dt*12);poseHuman(c.hum,sw,c.up);
     let y=0;if(c.hop>0){c.hop-=dt;y=Math.abs(Math.sin(c.hop*Math.PI/0.5))*0.35;}
     c.g.position.set(c.x,y,c.z);c.g.rotation.y=c.face;
   }
@@ -1098,6 +1148,7 @@ function frame(ts){
     hudT=0.1;
     $('spd').textContent=WK.on?'Walking':(P.type==='plane'?'Alt '+Math.round(P.y)+' m · ':'')+Math.round(Math.abs(P.speed)*3.6)+' km/h';
     $('veh').textContent=WK.on?'On foot':DEFS[P.type].name+(P.hp<=0?' (broken)':'');
+    $('armor').textContent=save.str[P.type]|0;
     $('cond').textContent=Math.round(P.hp)+'%';$('cond').style.color=P.hp>60?'#7dff6b':(P.hp>30?'#ffd36b':'#ff6b6b');
     let pt='';
     if(started&&!shopOpen){
@@ -1111,7 +1162,7 @@ function frame(ts){
   renderer.render(scene,camera);
 }
 requestAnimationFrame(frame);
-window.__dcs={WK:WK,crowd:crowd,HPS:HPS,toggleOnFoot:toggleOnFoot,P:P,rockets:rockets,ais:ais,buildings:buildings,obstacles:obstacles,coins:coins,explode:explode,launchRocket:launchRocket,registerImpact:registerImpact,save:save};
+window.__dcs={SHOP:SHOP,WK:WK,crowd:crowd,HPS:HPS,toggleOnFoot:toggleOnFoot,P:P,rockets:rockets,ais:ais,buildings:buildings,obstacles:obstacles,coins:coins,explode:explode,launchRocket:launchRocket,registerImpact:registerImpact,save:save};
 })();
 </script>
 </body>
