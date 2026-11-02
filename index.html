@@ -22,6 +22,22 @@ html,body{margin:0;height:100%;overflow:hidden;background:#0a0618;font-family:sy
 #start p{margin:6px 0;color:#e8dcff;font-size:17px}
 #start .btn{margin-top:22px;padding:12px 34px;background:#ff9d00;color:#2a0a40;font-weight:800;border-radius:30px;font-size:20px}
 #toast{position:fixed;left:50%;bottom:140px;transform:translateX(-50%);display:none;background:rgba(40,16,70,.9);border:1px solid #ffb020;border-radius:10px;padding:9px 16px;font-size:15px;color:#fff;max-width:min(560px,90vw);text-align:center;z-index:6}
+#admBtn{position:fixed;right:12px;bottom:12px;z-index:5;background:rgba(80,20,50,.8);color:#ffb3c4;border:1px solid #ff4d6d;border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer}
+#admin{position:fixed;right:12px;top:76px;bottom:50px;width:min(340px,92vw);display:none;overflow-y:auto;z-index:7;background:rgba(24,10,44,.96);border:2px solid #ff4d6d;border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.45}
+#admin .ahead{display:flex;justify-content:space-between;align-items:center;color:#ff8fa8;font-size:15px;margin-bottom:6px}
+#admin .ahead span{cursor:pointer;padding:0 6px}
+#admin h4{margin:12px 0 5px;color:#ffd36b;font-size:13px;border-bottom:1px solid rgba(255,255,255,.15);padding-bottom:2px}
+#admin label{display:block;margin:4px 0;cursor:pointer}
+#admin input[type=password],#admin input[type=number]{width:100%;box-sizing:border-box;background:#120826;color:#fff;border:1px solid #6e58a8;border-radius:6px;padding:6px 8px;font-size:14px;margin-bottom:6px}
+#admin .arow{display:flex;flex-wrap:wrap;gap:5px;margin:5px 0}
+#admin .ab{background:#ff9d00;border:0;border-radius:7px;padding:6px 9px;font-weight:700;font-size:12px;cursor:pointer;color:#2a0a40}
+#admin .ab.red{background:#ff4d6d;color:#fff}
+#admin .ab.gray{background:#59467f;color:#fff}
+#admin .aplayers{background:rgba(255,255,255,.06);border-radius:8px;padding:6px 8px;margin:6px 0;font-size:12px}
+#admin .aplayer{align-items:center;justify-content:space-between}
+#admin .anote{font-size:11px;opacity:.7}
+#admErr{color:#ff8fa8;font-size:12px;min-height:14px}
+#kicked{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(10,0,20,.94);z-index:20;text-align:center;font-size:18px}
 #talk{position:fixed;left:50%;bottom:48px;transform:translateX(-50%);display:none;z-index:9;background:#241042;border:2px solid #ffb020;border-radius:14px;padding:14px 18px;width:min(460px,92vw);box-shadow:0 8px 30px rgba(0,0,0,.5)}
 #talk .who{color:#ffd36b;font-weight:800;font-size:14px;letter-spacing:.5px;margin-bottom:4px}
 #talktxt{font-size:19px;margin-bottom:12px}
@@ -41,7 +57,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#0a0618;font-family:sy
 </head>
 <body>
 <div id="game"></div>
-<div id="hud" class="panel">Coins: <b id="coins">0</b><br>Vehicle: <b id="veh">Car</b><br>Condition: <b id="cond">100%</b> &middot; Armor <b id="armor">0</b>/5<br><span id="spd">0 km/h</span></div>
+<div id="hud" class="panel"><div id="admbadge" style="display:none;color:#ff6b8a;font-weight:800">ADMIN MODE</div>Coins: <b id="coins">0</b><br>Vehicle: <b id="veh">Car</b><br>Condition: <b id="cond">100%</b> &middot; Armor <b id="armor">0</b>/5<br><span id="spd">0 km/h</span></div>
 <div id="net" class="panel">Players here: <b id="players">1</b><br><small style="opacity:.75">(open a 2nd tab to test)</small></div>
 <div id="help" class="panel">
 <kbd>W A S D</kbd>/arrows drive &nbsp; <kbd>Space</kbd> handbrake (plane: climb) &nbsp; <kbd>Shift</kbd> nitro (plane: descend)<br>
@@ -51,6 +67,30 @@ html,body{margin:0;height:100%;overflow:hidden;background:#0a0618;font-family:sy
 <div id="prompt" class="panel">Press E to open the Diwali Shop</div>
 <div id="toast"></div>
 <div id="pop">BONK!</div>
+<button id="admBtn">Admin (F2)</button>
+<div id="kicked"><div><h2>You were removed by the admin</h2><p>Reload the page to rejoin.</p></div></div>
+<div id="admin">
+  <div class="ahead"><b>ADMIN PANEL</b><span id="admClose" title="Close (F2)">&#10005;</span></div>
+  <div id="admLock"><p>Enter the admin password to continue.</p><input id="admPw" type="password" placeholder="Admin password" autocomplete="off"><button class="ab" id="admUnlock">Unlock</button><div id="admErr"></div></div>
+  <div id="admBody" style="display:none">
+    <h4>MONEY</h4>
+    <input id="admAmt" type="number" value="100000" step="1000">
+    <div class="arow"><button class="ab" id="admAdd">Give me</button><button class="ab" id="admSet">Set my coins</button><button class="ab" id="admAll">Give everyone</button></div>
+    <div id="admPlayers" class="aplayers">No other players online.</div>
+    <h4>ME</h4>
+    <label><input type="checkbox" id="admGod"> God mode (no vehicle damage)</label>
+    <label><input type="checkbox" id="admNoclip"> No-clip (drive through everything)</label>
+    <label>Speed x<b id="admSpeedV">1</b> <input type="range" id="admSpeed" min="1" max="4" step="0.5" value="1" style="vertical-align:middle"></label>
+    <div class="arow"><button class="ab" id="admRepair">Repair vehicle</button><button class="ab" id="admMax">Unlock ALL upgrades</button><button class="ab" id="admShow">Mega fireworks</button></div>
+    <div class="arow"><button class="ab gray" id="admTpSpawn">Go to spawn</button><button class="ab gray" id="admTpShop1">Spawn shop</button><button class="ab gray" id="admTpShop2">Main shop</button></div>
+    <div class="arow"><button class="ab" id="admCollect">Collect all coins</button><button class="ab" id="admRespawn">Respawn all coins</button><button class="ab" id="admCrowd">Add bystanders</button></div>
+    <h4>REMOVE THINGS</h4>
+    <label><input type="checkbox" id="admDel"> Delete tool: click any object in the world to remove it (click a player to kick them)</label>
+    <div class="arow"><button class="ab red" id="admRmVeh">All traffic</button><button class="ab red" id="admRmObs">All obstacles</button><button class="ab red" id="admRmPpl">All people</button><button class="ab red" id="admRmCoin">All coins</button><button class="ab red" id="admRmTree">All trees</button><button class="ab red" id="admRmBld">All buildings</button><button class="ab red" id="admRmKeep">Shopkeepers</button></div>
+    <div class="arow"><button class="ab" id="admUndo">Undo last removal</button><button class="ab gray" id="admLockBtn">Lock admin</button></div>
+    <p class="anote">Reloading the page brings back everything you removed.</p>
+  </div>
+</div>
 <div id="talk"><div class="who">SHOPKEEPER</div><div id="talktxt">Namaste! Why are you here?</div><div class="opts"><button id="optBuy">1. Buy patakas</button><button id="optBye" class="bye">2. Bye</button></div></div>
 <div id="shop"><div id="shopbox"><h2>Diwali Shop</h2><div style="color:#bda9e6;margin:0 0 4px">Shopkeeper: "Take a look! Fresh patakas and more."</div><div>Coins: <b id="shopcoins">0</b></div><div id="shoplist"></div><button class="close" id="shopclose">Bye</button></div></div>
 <div id="start"><h1>Diwali City Simulator</h1><p>Drive, fly, collect coins and light up the night sky.</p><p>Turn your sound on for the full firework + crash audio.</p><div class="btn">Click or press any key to start</div></div>
@@ -73,6 +113,18 @@ function angDiff(a,b){let d=(b-a)%TAU;if(d>Math.PI)d-=TAU;if(d<-Math.PI)d+=TAU;r
 const save={coins:0,up:{volley:0,auto:0,nitro:0,gold:0,magnet:0},str:{car:0,truck:0,scooter:0,bike:0,plane:0}};
 try{const s=JSON.parse(localStorage.getItem('dcs_save_v2')||'null');if(s){save.coins=s.coins|0;Object.assign(save.up,s.up||{});Object.assign(save.str,s.str||{});}}catch(e){}
 function persist(){try{localStorage.setItem('dcs_save_v2',JSON.stringify(save));}catch(e){}}
+
+/* ================= ADMIN SETTINGS ================= */
+// Change this password! Press F2 (or the Admin button) in the game and enter it to become admin.
+// Set it to '' (empty) to be admin automatically, with no password.
+const ADMIN_PASSWORD='diwali-admin';
+const ADM={unlocked:false,open:false,god:false,noclip:false,speed:1,del:false};
+let kicked=false;
+// (hidden feature state) MOON.on = you are on the moon surface world, SPACE.open = the plane has broken through the ceiling
+const MOON={on:false,y:1800,r:260,rocks:[],world:null,hidden:[]};
+const SPACE={open:false,hold:0,busy:false};
+function GY(){return MOON.on?MOON.y:0;} // ground height of whichever world you are in
+try{if(ADMIN_PASSWORD===''||sessionStorage.getItem('dcs_admin')==='1')ADM.unlocked=true;}catch(e){if(ADMIN_PASSWORD==='')ADM.unlocked=true;}
 
 /* ================= RENDERER / SCENE ================= */
 const PR=Math.min(window.devicePixelRatio||1,2);
@@ -107,7 +159,7 @@ function wheel(r,wd,x,y,z,parent){const me=new THREE.Mesh(new THREE.CylinderGeom
 
 /* ================= WORLD ================= */
 const ROAD=40,HALF=200;
-const buildings=[],statics=[];
+const buildings=[],statics=[],trees=[];
 const ground=new THREE.Mesh(new THREE.PlaneGeometry(1400,1400),mat(0x141a22));
 ground.rotation.x=-Math.PI/2;ground.position.y=-0.05;scene.add(ground);
 
@@ -150,9 +202,9 @@ function addBuilding(x,z,w,d,h,material){
   for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*Math.max(1,w/9),uv.getY(i)*Math.max(1,h/7));
   const m=new THREE.Mesh(geo,material||BM[(Math.random()*BM.length)|0]);
   m.position.set(x,h/2+0.3,z);scene.add(m);
-  buildings.push({x:x,z:z,hw:w/2,hd:d/2,h:h+0.3});
-  if(Math.random()<0.5)box(w*0.3,1.4,d*0.3,roofM,x+rnd(-w*0.2,w*0.2),h+1.0,z+rnd(-d*0.2,d*0.2),scene);
-  const ly=h+0.65,push=(px,pz)=>{(strCount++%2?strA:strB).push(px,ly,pz);};
+  const bd={x:x,z:z,hw:w/2,hd:d/2,h:h+0.3,mesh:m,roof:null,ls:[]};buildings.push(bd); // mesh/roof/ls let the admin remove a building completely
+  if(Math.random()<0.5)bd.roof=box(w*0.3,1.4,d*0.3,roofM,x+rnd(-w*0.2,w*0.2),h+1.0,z+rnd(-d*0.2,d*0.2),scene);
+  const ly=h+0.65,push=(px,pz)=>{const A=(strCount++%2)?strA:strB;A.push(px,ly,pz);bd.ls.push([A===strA?0:1,A.length/3-1]);};
   for(let lx=-w/2+0.8;lx<=w/2-0.4;lx+=1.8){push(x+lx,z-d/2-0.1);push(x+lx,z+d/2+0.1);}
   for(let lz=-d/2+0.8;lz<=d/2-0.4;lz+=1.8){push(x-w/2-0.1,z+lz);push(x+w/2+0.1,z+lz);}
 }
@@ -208,11 +260,11 @@ for(let bi=-5;bi<5;bi++)for(let bj=-5;bj<5;bj++){
   else if(isShop2)addSpawnShop(cx,cz);
   else if(isPark){
     for(let t=0;t<5;t++){
-      const tx=cx+rnd(-10,10),tz=cz+rnd(-10,10),s=rnd(0.9,1.4);
-      const trunk=new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.45,2.4*s,6),trunkM);trunk.position.set(tx,1.5*s,tz);scene.add(trunk);
-      const l1=new THREE.Mesh(new THREE.ConeGeometry(2.0*s,3.4*s,7),leafM);l1.position.set(tx,3.6*s,tz);scene.add(l1);
-      const l2=new THREE.Mesh(new THREE.ConeGeometry(1.5*s,2.8*s,7),leafM2);l2.position.set(tx,5.2*s,tz);scene.add(l2);
-      statics.push({x:tx,z:tz,r:1.1,h:8});
+      const tx=cx+rnd(-10,10),tz=cz+rnd(-10,10),s=rnd(0.9,1.4),tg=new THREE.Group();scene.add(tg);
+      const trunk=new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.45,2.4*s,6),trunkM);trunk.position.set(tx,1.5*s,tz);tg.add(trunk);
+      const l1=new THREE.Mesh(new THREE.ConeGeometry(2.0*s,3.4*s,7),leafM);l1.position.set(tx,3.6*s,tz);tg.add(l1);
+      const l2=new THREE.Mesh(new THREE.ConeGeometry(1.5*s,2.8*s,7),leafM2);l2.position.set(tx,5.2*s,tz);tg.add(l2);
+      const tst={x:tx,z:tz,r:1.1,h:8};statics.push(tst);trees.push({g:tg,st:tst});
     }
   }else if(Math.random()<0.5){
     addBuilding(cx,cz,rnd(16,22),rnd(16,22),rnd(14,42));
@@ -331,7 +383,7 @@ function setVehicle(type){
   scene.add(P.v.group);P.speed=0;
   P.hp=HPS[type];P.pull=Math.random()<0.5?-1:1;
   refreshDamage();
-  P.y=(type==='plane')?0.95:0;
+  P.y=GY()+((type==='plane')?0.95:0);
   $('veh').textContent=DEFS[type].name;
   netSendNow();
 }
@@ -691,9 +743,9 @@ function aroundPlayer(bias){
 }
 function launchRocket(x,z){
   if(rockets.length>26)return;
-  const r={x:x,y:0.6,z:z,vx:rnd(-1.5,1.5),vz:rnd(-1.5,1.5),vy:6,ty:rnd(30,56),t:0,ph:Math.random()*6,mesh:new THREE.Mesh(rocketGeo,rocketMat)};
+  const gy=GY(),r={x:x,y:gy+0.6,z:z,vx:rnd(-1.5,1.5),vz:rnd(-1.5,1.5),vy:6,ty:gy+rnd(30,56),t:0,ph:Math.random()*6,mesh:new THREE.Mesh(rocketGeo,rocketMat)};
   scene.add(r.mesh);rockets.push(r);
-  for(let i=0;i<12;i++)spawnP(x,0.5,z,rnd(-4,4),rnd(2,8),rnd(-4,4),1,0.7,0.25,0.4+Math.random()*0.3,1.8,10,2,0.8);
+  for(let i=0;i<12;i++)spawnP(x,gy+0.5,z,rnd(-4,4),rnd(2,8),rnd(-4,4),1,0.7,0.25,0.4+Math.random()*0.3,1.8,10,2,0.8);
   sfxLaunch(x,z);
 }
 function updateRockets(dt){
@@ -802,8 +854,16 @@ function registerImpact(impact,ix,iy,iz){
 const keys={};let started=false,shopOpen=false,talkOpen=false,camMode=0;
 function isK(){for(let i=0;i<arguments.length;i++)if(keys[arguments[i]])return true;return false;}
 window.addEventListener('keydown',function(e){
+  if(kicked)return;
+  const tg=e.target; // typing in an admin text box must not drive the car
+  if(tg&&tg.tagName==='INPUT'&&(tg.type==='text'||tg.type==='password'||tg.type==='number')){
+    if(e.code==='Enter'&&tg.id==='admPw')unlockAdmin();
+    if(e.code==='Escape'||e.code==='Enter')tg.blur();
+    return;
+  }
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Tab'].indexOf(e.code)>=0)e.preventDefault();
   if(!started){startGame();return;}
+  if(e.code==='F2'||e.code==='Backquote'){e.preventDefault();toggleAdmin();return;}
   if(e.repeat){keys[e.code]=true;return;}
   keys[e.code]=true;
   if(e.code==='Escape'&&shopOpen){toggleShop(false);return;}
@@ -892,7 +952,7 @@ function updatePlayer(dt){
   }
   const broken=P.hp<=0,dmgF=1-P.hp/100;
   if(broken){thr=0;steer=0;hb=false;boost=false;}
-  let max=def.max*(1-0.4*dmgF),acc=def.acc*(1-0.3*dmgF);
+  let max=def.max*(1-0.4*dmgF)*ADM.speed,acc=def.acc*(1-0.3*dmgF)*ADM.speed;
   if(save.up.nitro&&boost&&!plane&&thr>0){max*=1.3;acc*=1.9;}
   if(thr>0)P.speed+=acc*dt;
   else if(thr<0)P.speed-=(P.speed>0?acc*1.6:acc*0.6)*dt;
@@ -935,6 +995,7 @@ function bounceFrom(nx,nz,ovx,ovz,k){
   return impact;
 }
 function collidePlayer(){
+  if(ADM.noclip)return;
   const r=DEFS[P.type].r,plane=P.type==='plane',hi=plane&&P.y>4;
   const fx=Math.sin(P.h),fz=Math.cos(P.h);
   const ix=P.x+fx*r*0.8,iy=P.y+1,iz=P.z+fz*r*0.8;
@@ -1045,7 +1106,7 @@ function updateWalker(dt){
     run=isK('ShiftLeft','ShiftRight');
   }
   WK.h+=turn*2.8*dt;
-  const target=fwd>0?(run?9:5):(fwd<0?-2.5:0);
+  const target=(fwd>0?(run?9:5):(fwd<0?-2.5:0))*Math.min(ADM.speed,3);
   WK.sp+=(target-WK.sp)*Math.min(1,dt*8);
   WK.x=clamp(WK.x+Math.sin(WK.h)*WK.sp*dt,-215,215);WK.z=clamp(WK.z+Math.cos(WK.h)*WK.sp*dt,-215,215);
   const r=0.5;
@@ -1073,6 +1134,7 @@ function updateWalker(dt){
 }
 // --- damage ---
 function damageVehicle(s){
+  if(ADM.god)return;
   const before=P.hp;
   P.hp=Math.max(0,P.hp-(14+22*s)*strMul(P.type));HPS[P.type]=P.hp;
   refreshDamage();
@@ -1161,7 +1223,7 @@ function updateCamera(dt){
 /* ================= MULTIPLAYER (same-browser tabs via BroadcastChannel) ================= */
 const myId=Math.random().toString(36).slice(2,8),others=new Map();
 let bc=null,netTimer=0;
-function netSend(o){if(!bc)return;try{o.id=myId;bc.postMessage(o);}catch(e){}}
+function netSend(o){if(!bc||kicked)return;try{o.id=myId;bc.postMessage(o);}catch(e){}}
 function netSendNow(){netSend({type:P.type,x:P.x,y:P.y,z:P.z,h:P.h,gold:save.up.gold?1:0});}
 function makeLabel(text){
   const c=document.createElement('canvas');c.width=256;c.height=64;const g=c.getContext('2d');
@@ -1173,6 +1235,7 @@ try{
   bc.onmessage=function(e){
     const m=e.data;if(!m||!m.id||m.id===myId)return;
     if(m.bye){const o=others.get(m.id);if(o){scene.remove(o.v.group);others.delete(m.id);}return;}
+    if(m.adm){onAdminMsg(m);return;}
     if(m.fw){after(0,function(){for(let i=0;i<3;i++){const a=Math.random()*TAU,d=rnd(8,30);launchRocket(m.x+Math.sin(a)*d,m.z+Math.cos(a)*d);}});return;}
     let o=others.get(m.id);
     if(!o||o.type!==m.type){
@@ -1194,6 +1257,184 @@ function updateNet(dt){
   });
   $('players').textContent=1+others.size;
 }
+
+/* ================= ADMIN PANEL ================= */
+const undoStack=[];
+const ZERO=new THREE.Matrix4().makeScale(0,0,0);
+function hideLights(b){ // string lights are instanced, so shrink this building's bulbs to nothing
+  const saved=[];
+  for(let i=0;i<b.ls.length;i++){
+    const im=b.ls[i][0]?window.__lightsB:window.__lightsA;if(!im)continue;
+    const m=new THREE.Matrix4();im.getMatrixAt(b.ls[i][1],m);saved.push([im,b.ls[i][1],m]);
+    im.setMatrixAt(b.ls[i][1],ZERO);im.instanceMatrix.needsUpdate=true;
+  }
+  return function(){for(let i=0;i<saved.length;i++){saved[i][0].setMatrixAt(saved[i][1],saved[i][2]);saved[i][0].instanceMatrix.needsUpdate=true;}};
+}
+// every remover returns an "undo" function (or null if there was nothing to remove)
+function rmFrom(arr,o,obj3d){const i=arr.indexOf(o);if(i<0)return null;arr.splice(i,1);scene.remove(obj3d);return function(){scene.add(obj3d);arr.splice(Math.min(i,arr.length),0,o);};}
+function rmBuilding(b){
+  const i=buildings.indexOf(b);if(i<0)return null;
+  buildings.splice(i,1);scene.remove(b.mesh);if(b.roof)scene.remove(b.roof);const back=hideLights(b);
+  return function(){scene.add(b.mesh);if(b.roof)scene.add(b.roof);buildings.splice(Math.min(i,buildings.length),0,b);back();};
+}
+function rmTree(t){
+  const j=trees.indexOf(t);if(j<0)return null;
+  const i=statics.indexOf(t.st);trees.splice(j,1);if(i>=0)statics.splice(i,1);scene.remove(t.g);
+  return function(){scene.add(t.g);trees.push(t);statics.push(t.st);};
+}
+function rmCoin(c){
+  if(!c.alive&&c.respawn>1e8)return null;
+  c.alive=false;c.g.visible=false;c.respawn=1e9;
+  return function(){c.alive=true;c.g.visible=true;c.respawn=0;};
+}
+function kickPlayer(id){
+  netSend({adm:'kick',to:id});
+  const o=others.get(id);if(o){scene.remove(o.v.group);others.delete(id);}
+  admKey='';toast('Player removed from the game',2000);
+}
+function removeDesc(d){
+  if(!ADM.unlocked)return null;
+  switch(d.k){
+    case'building':return rmBuilding(d.r);
+    case'obstacle':return rmFrom(obstacles,d.r,d.r.mesh);
+    case'vehicle':return rmFrom(ais,d.r,d.r.v.group);
+    case'person':return rmFrom(people,d.r,d.r.g)||rmFrom(crowd,d.r,d.r.g);
+    case'shopkeeper':return rmFrom(keepers,d.r,d.r.h.g);
+    case'tree':return rmTree(d.r);
+    case'coin':return rmCoin(d.r);
+  }
+  return null;
+}
+function pushUndo(f){undoStack.push(f);if(undoStack.length>60)undoStack.shift();}
+function massRemove(kinds){
+  const lists={vehicle:ais,obstacle:obstacles,person:people,crowd:crowd,coin:coins,tree:trees,building:buildings,shopkeeper:keepers},undos=[];
+  kinds.forEach(function(kind){
+    lists[kind].slice().forEach(function(o){const u=removeDesc({k:kind==='crowd'?'person':kind,r:o});if(u)undos.push(u);});
+  });
+  if(undos.length){pushUndo(function(){for(let i=undos.length-1;i>=0;i--)undos[i]();});toast('Removed '+undos.length+' '+kinds[0]+(kinds.length>1?' (and more)':'')+(undos.length>1&&kinds.length===1?'s':''),2400);}
+  else toast('Nothing to remove',1600);
+  return undos.length;
+}
+function undoLast(){const f=undoStack.pop();if(f){f();toast('Restored',1500);return true;}toast('Nothing to undo',1500);return false;}
+
+// delete tool: click any object in the 3D world
+const ray=new THREE.Raycaster(),ndc=new THREE.Vector2();
+function pickObject(ev){
+  const rc=renderer.domElement.getBoundingClientRect();
+  ndc.set(((ev.clientX-rc.left)/rc.width)*2-1,-((ev.clientY-rc.top)/rc.height)*2+1);
+  ray.setFromCamera(ndc,camera);
+  const desc=new Map(),objs=[];
+  function add(o,d){objs.push(o);desc.set(o,d);}
+  buildings.forEach(function(b){if(b.mesh)add(b.mesh,{k:'building',r:b});});
+  obstacles.forEach(function(o){add(o.mesh,{k:'obstacle',r:o});});
+  ais.forEach(function(a){add(a.v.group,{k:'vehicle',r:a});});
+  people.forEach(function(p){add(p.g,{k:'person',r:p});});
+  crowd.forEach(function(c){add(c.g,{k:'person',r:c});});
+  keepers.forEach(function(k){add(k.h.g,{k:'shopkeeper',r:k});});
+  trees.forEach(function(t){add(t.g,{k:'tree',r:t});});
+  coins.forEach(function(c){if(c.alive)add(c.g,{k:'coin',r:c});});
+  others.forEach(function(o,id){add(o.v.group,{k:'player',id:id});});
+  const hits=ray.intersectObjects(objs,true);
+  for(let i=0;i<hits.length;i++){let o=hits[i].object;while(o){if(desc.has(o))return desc.get(o);o=o.parent;}}
+  return null;
+}
+renderer.domElement.addEventListener('click',function(ev){
+  if(!ADM.unlocked||!ADM.del||shopOpen||!started)return;
+  const d=pickObject(ev);
+  if(!d){toast('Nothing there',800);return;}
+  if(d.k==='player'){kickPlayer(d.id);return;}
+  const u=removeDesc(d);
+  if(u){pushUndo(u);toast('Removed '+d.k+'  (Undo in the admin panel)',1600);}
+});
+
+// money, players and messages between tabs
+const amt=function(){return clamp(Math.floor(+$('admAmt').value)||0,-999999999,999999999);};
+function giveSelf(n,set){save.coins=clamp(set?n:save.coins+n,0,999999999);persist();updateHUDcoins();sfxCoin();}
+function onAdminMsg(m){
+  if(m.adm==='coins'&&(m.to==='all'||m.to===myId)){
+    const n=m.n|0;giveSelf(n,false);
+    toast('The admin '+(n>=0?'gave you ':'took ')+Math.abs(n).toLocaleString()+' coins!',3500);
+  }else if(m.adm==='kick'&&m.to===myId){
+    netSend({bye:1});kicked=true;$('kicked').style.display='flex';
+  }
+}
+let admKey='';
+function renderAdminPlayers(){
+  const ids=Array.from(others.keys()),key=ids.join(',');
+  if(key===admKey)return;admKey=key;
+  const box=$('admPlayers');box.innerHTML='';
+  if(!ids.length){box.textContent='No other players online (open the game in another tab to test).';return;}
+  ids.forEach(function(id){
+    const row=document.createElement('div');row.className='arow aplayer';
+    const nm=document.createElement('b');nm.textContent='Player '+id.slice(0,3);row.appendChild(nm);
+    const btn=function(txt,cls,fn){const b=document.createElement('button');b.className='ab '+cls;b.textContent=txt;b.addEventListener('click',function(){fn();if(b.blur)b.blur();});row.appendChild(b);};
+    btn('Give','',function(){netSend({adm:'coins',to:id,n:amt()});toast('Gave '+amt().toLocaleString()+' coins to Player '+id.slice(0,3),2200);});
+    btn('Take','gray',function(){netSend({adm:'coins',to:id,n:-amt()});toast('Took '+amt().toLocaleString()+' coins from Player '+id.slice(0,3),2200);});
+    btn('Go to','gray',function(){const o=others.get(id);if(o)teleport(o.x+4,o.z);});
+    btn('Kick','red',function(){kickPlayer(id);});
+    box.appendChild(row);
+  });
+}
+function teleport(x,z){
+  if(WK.on){WK.x=x;WK.z=z;}else{P.x=x;P.z=z;P.speed=0;if(P.type==='plane')P.y=Math.max(P.y,0.95);}
+  const A=actor();camH=A.h;shake=0;
+}
+function repairNow(){P.hp=100;HPS[P.type]=100;refreshDamage();dismissCrowd();}
+
+// panel open/close, password
+function showAdminState(){
+  $('admLock').style.display=ADM.unlocked?'none':'block';
+  $('admBody').style.display=ADM.unlocked?'block':'none';
+  $('admbadge').style.display=ADM.unlocked?'block':'none';
+  $('admin').style.display=ADM.open?'block':'none';
+  if(ADM.unlocked){admKey='';renderAdminPlayers();}
+}
+function toggleAdmin(){ADM.open=!ADM.open;showAdminState();for(const k in keys)keys[k]=false;}
+function unlockAdmin(){
+  if($('admPw').value===ADMIN_PASSWORD){
+    ADM.unlocked=true;try{sessionStorage.setItem('dcs_admin','1');}catch(e){}
+    $('admErr').textContent='';$('admPw').value='';showAdminState();toast('Admin mode unlocked',2000);
+  }else $('admErr').textContent='Wrong password';
+}
+function lockAdmin(){
+  ADM.unlocked=false;ADM.god=false;ADM.noclip=false;ADM.speed=1;ADM.del=false;ADM.open=false;
+  try{sessionStorage.removeItem('dcs_admin');}catch(e){}
+  $('admGod').checked=false;$('admNoclip').checked=false;$('admDel').checked=false;$('admSpeed').value=1;$('admSpeedV').textContent='1';
+  renderer.domElement.style.cursor='';showAdminState();
+}
+(function(){
+  const on=function(id,fn){$(id).addEventListener('click',function(){fn();if(this.blur)this.blur();});};
+  on('admBtn',toggleAdmin);on('admClose',toggleAdmin);on('admUnlock',unlockAdmin);on('admLockBtn',lockAdmin);
+  on('admAdd',function(){giveSelf(amt(),false);toast('You now have '+save.coins.toLocaleString()+' coins',2200);});
+  on('admSet',function(){giveSelf(Math.max(0,amt()),true);toast('Coins set to '+save.coins.toLocaleString(),2200);});
+  on('admAll',function(){netSend({adm:'coins',to:'all',n:amt()});toast('Sent '+amt().toLocaleString()+' coins to every other player',2400);});
+  on('admRepair',function(){repairNow();toast('Vehicle repaired',1500);});
+  on('admMax',function(){
+    SHOP.forEach(function(it){if(it.str)save.str[it.str]=it.max;else if(!it.repair)save.up[it.id]=it.max;});
+    persist();paintGold(P.v);HPS.car=HPS.truck=HPS.scooter=HPS.bike=HPS.plane=100;P.hp=100;refreshDamage();toast('Every upgrade unlocked and all vehicles repaired',2600);
+  });
+  on('admShow',function(){for(let i=0;i<24;i++)after(i*0.12,function(){const q=aroundPlayer(false);launchRocket(q[0],q[1]);});});
+  on('admTpSpawn',function(){teleport(0,-6);});
+  on('admTpShop1',function(){if(shopPts[0])teleport(shopPts[0].x,shopPts[0].z);});
+  on('admTpShop2',function(){if(shopPts[1])teleport(shopPts[1].x,shopPts[1].z);});
+  on('admCollect',function(){let n=0;coins.forEach(function(c){if(c.alive){c.alive=false;c.g.visible=false;c.respawn=25;save.coins+=5;n++;}});persist();updateHUDcoins();sfxCoin();toast('Collected '+n+' coins',1800);});
+  on('admRespawn',function(){coins.forEach(function(c){c.alive=true;c.g.visible=true;c.respawn=0;});toast('All coins respawned',1500);});
+  on('admCrowd',function(){spawnCrowd(24,false);});
+  on('admRmVeh',function(){massRemove(['vehicle']);});
+  on('admRmObs',function(){massRemove(['obstacle']);});
+  on('admRmPpl',function(){massRemove(['person','crowd']);});
+  on('admRmCoin',function(){massRemove(['coin']);});
+  on('admRmTree',function(){massRemove(['tree']);});
+  on('admRmBld',function(){massRemove(['building']);});
+  on('admRmKeep',function(){massRemove(['shopkeeper']);});
+  on('admUndo',undoLast);
+  $('admGod').addEventListener('change',function(){ADM.god=ADM.unlocked&&this.checked;if(this.blur)this.blur();toast(ADM.god?'God mode ON':'God mode off',1200);});
+  $('admNoclip').addEventListener('change',function(){ADM.noclip=ADM.unlocked&&this.checked;if(this.blur)this.blur();toast(ADM.noclip?'No-clip ON':'No-clip off',1200);});
+  $('admDel').addEventListener('change',function(){ADM.del=ADM.unlocked&&this.checked;renderer.domElement.style.cursor=ADM.del?'crosshair':'';if(this.blur)this.blur();});
+  $('admSpeed').addEventListener('input',function(){ADM.speed=ADM.unlocked?(+this.value||1):1;$('admSpeedV').textContent=String(ADM.speed);});
+  $('admSpeed').addEventListener('change',function(){if(this.blur)this.blur();});
+  showAdminState();
+})();
 
 /* ================= MAIN LOOP ================= */
 let last=0,blinkT=0,hudT=0;
@@ -1224,12 +1465,13 @@ function frame(ts){
       else if(!WK.on&&P.hp<=0)pt='Vehicle broken! Press X to get out, or 1-5 for another vehicle';
     }
     $('prompt').textContent=pt;$('prompt').style.display=pt?'block':'none';
+    if(ADM.open&&ADM.unlocked)renderAdminPlayers();
     if(toastUntil>0&&T>toastUntil){toastUntil=0;$('toast').style.display='none';}
   }
   renderer.render(scene,camera);
 }
 requestAnimationFrame(frame);
-window.__dcs={keepers:keepers,talk:{list:showList,bye:function(){closeShop(true);},open:function(){return talkOpen;}},shopPts:shopPts,SHOP:SHOP,WK:WK,crowd:crowd,HPS:HPS,toggleOnFoot:toggleOnFoot,P:P,rockets:rockets,ais:ais,buildings:buildings,obstacles:obstacles,coins:coins,explode:explode,launchRocket:launchRocket,registerImpact:registerImpact,save:save};
+window.__dcs={ADM:ADM,admin:{massRemove:massRemove,removeDesc:removeDesc,undo:undoLast,onMsg:onAdminMsg,unlock:unlockAdmin,lock:lockAdmin,toggle:toggleAdmin,teleport:teleport,giveSelf:giveSelf,undoCount:function(){return undoStack.length;},others:others,myId:myId},trees:trees,statics:statics,people:people,keepers:keepers,talk:{list:showList,bye:function(){closeShop(true);},open:function(){return talkOpen;}},shopPts:shopPts,SHOP:SHOP,WK:WK,crowd:crowd,HPS:HPS,toggleOnFoot:toggleOnFoot,P:P,rockets:rockets,ais:ais,buildings:buildings,obstacles:obstacles,coins:coins,explode:explode,launchRocket:launchRocket,registerImpact:registerImpact,save:save};
 })();
 </script>
 </body>
