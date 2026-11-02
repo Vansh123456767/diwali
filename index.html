@@ -22,6 +22,13 @@ html,body{margin:0;height:100%;overflow:hidden;background:#0a0618;font-family:sy
 #start p{margin:6px 0;color:#e8dcff;font-size:17px}
 #start .btn{margin-top:22px;padding:12px 34px;background:#ff9d00;color:#2a0a40;font-weight:800;border-radius:30px;font-size:20px}
 #toast{position:fixed;left:50%;bottom:140px;transform:translateX(-50%);display:none;background:rgba(40,16,70,.9);border:1px solid #ffb020;border-radius:10px;padding:9px 16px;font-size:15px;color:#fff;max-width:min(560px,90vw);text-align:center;z-index:6}
+#talk{position:fixed;left:50%;bottom:48px;transform:translateX(-50%);display:none;z-index:9;background:#241042;border:2px solid #ffb020;border-radius:14px;padding:14px 18px;width:min(460px,92vw);box-shadow:0 8px 30px rgba(0,0,0,.5)}
+#talk .who{color:#ffd36b;font-weight:800;font-size:14px;letter-spacing:.5px;margin-bottom:4px}
+#talktxt{font-size:19px;margin-bottom:12px}
+#talk .opts{display:flex;gap:10px}
+#talk .opts button{flex:1;background:#ff9d00;border:0;border-radius:10px;padding:10px 12px;font-weight:800;font-size:16px;cursor:pointer;color:#2a0a40}
+#talk .opts button.bye{background:#59467f;color:#fff}
+#talk .opts button:hover{filter:brightness(1.12)}
 #shop{position:fixed;inset:0;background:rgba(5,0,15,.7);display:none;align-items:center;justify-content:center;z-index:8}
 #shopbox{max-height:86vh;overflow-y:auto;background:#241042;border:2px solid #ffb020;border-radius:14px;padding:18px 22px;width:min(480px,92vw)}
 #shopbox h2{margin:0 0 4px;color:#ffd36b}
@@ -39,12 +46,13 @@ html,body{margin:0;height:100%;overflow:hidden;background:#0a0618;font-family:sy
 <div id="help" class="panel">
 <kbd>W A S D</kbd>/arrows drive &nbsp; <kbd>Space</kbd> handbrake (plane: climb) &nbsp; <kbd>Shift</kbd> nitro (plane: descend)<br>
 <kbd>1</kbd> Car <kbd>2</kbd> Truck <kbd>3</kbd> Scooter <kbd>4</kbd> Bike <kbd>5</kbd> Plane &nbsp; <kbd>F</kbd> rocket volley &nbsp; <kbd>G</kbd> pataka chain<br>
-<kbd>X</kbd> get out / get in &nbsp; <kbd>C</kbd> cheer (on foot) &nbsp; <kbd>E</kbd> shop (near pink shop) &nbsp; <kbd>V</kbd> camera &nbsp; <kbd>M</kbd> mute &nbsp; <kbd>H</kbd> hide help
+<kbd>X</kbd> get out / get in &nbsp; <kbd>C</kbd> cheer (on foot) &nbsp; <kbd>E</kbd> talk to the shopkeeper (pink Diwali Shop, one is beside the start) &nbsp; <kbd>V</kbd> camera &nbsp; <kbd>M</kbd> mute &nbsp; <kbd>H</kbd> hide help
 </div>
 <div id="prompt" class="panel">Press E to open the Diwali Shop</div>
 <div id="toast"></div>
 <div id="pop">BONK!</div>
-<div id="shop"><div id="shopbox"><h2>Diwali Shop</h2><div>Coins: <b id="shopcoins">0</b></div><div id="shoplist"></div><button class="close" id="shopclose">Close (E / Esc)</button></div></div>
+<div id="talk"><div class="who">SHOPKEEPER</div><div id="talktxt">Namaste! Why are you here?</div><div class="opts"><button id="optBuy">1. Buy patakas</button><button id="optBye" class="bye">2. Bye</button></div></div>
+<div id="shop"><div id="shopbox"><h2>Diwali Shop</h2><div style="color:#bda9e6;margin:0 0 4px">Shopkeeper: "Take a look! Fresh patakas and more."</div><div>Coins: <b id="shopcoins">0</b></div><div id="shoplist"></div><button class="close" id="shopclose">Bye</button></div></div>
 <div id="start"><h1>Diwali City Simulator</h1><p>Drive, fly, collect coins and light up the night sky.</p><p>Turn your sound on for the full firework + crash audio.</p><div class="btn">Click or press any key to start</div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -151,7 +159,8 @@ function addBuilding(x,z,w,d,h,material){
 const slabGeo=new THREE.BoxGeometry(28,0.3,28),slabMat=mat(0x2d2a3b),parkMat=mat(0x2f6b3a);
 const trunkM=mat(0x5a3a22),leafM=mat(0x2f8a45),leafM2=mat(0x3aa356);
 const lampPos=[],diyaPos=[];
-let shopPos={x:20,z:9};
+const shopPts=[]; // every Diwali Shop entrance (press E near any of them)
+const keeperSpots=[]; // where each shopkeeper stands (the people themselves are built after the human model exists)
 function rangoli(x,z,rad){
   const c=document.createElement('canvas');c.width=c.height=256;const g=c.getContext('2d');
   const cols=['#ff3b6b','#ffd23b','#2fd0ff','#7dff6b','#ff8a1f','#c35bff'];
@@ -173,12 +182,30 @@ function addShop(cx,cz){
   box(20.4,0.4,3,mat(0xffb020),cx,4.4,cz-8.6,scene);
   box(3,3.4,0.25,darkM,cx,2.0,cz-7.1,scene);
   rangoli(cx,cz-12,3.4);
-  shopPos={x:cx,z:cz-10};
+  shopPts.push({x:cx,z:cz-10});
+  keeperSpots.push({x:cx+3.6,z:cz-8.8,face:Math.PI});
+}
+// Second shop right beside the spawn point (spawn is at 0,-6): a smaller pink shop facing the road
+function addSpawnShop(cx,cz){
+  const sx=cx-7.5,sz=cz+7,w=12,d=8,front=sz+d/2;
+  addBuilding(sx,sz,w,d,7,mat(0xd04a8c));
+  const sc=document.createElement('canvas');sc.width=512;sc.height=128;const g=sc.getContext('2d');
+  g.fillStyle='#b3195a';g.fillRect(0,0,512,128);g.strokeStyle='#ffd36b';g.lineWidth=8;g.strokeRect(8,8,496,112);
+  g.fillStyle='#ffe9a8';g.font='bold 62px Arial';g.textAlign='center';g.textBaseline='middle';g.fillText('DIWALI SHOP',256,68);
+  const sign=new THREE.Mesh(new THREE.PlaneGeometry(9,2.25),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(sc)}));
+  sign.position.set(sx,5.3,front+0.12);scene.add(sign);
+  box(w+0.4,0.4,2.4,mat(0xffb020),sx,3.6,front+1.1,scene);
+  box(2.4,3,0.25,darkM,sx,1.6,front+0.06,scene);
+  rangoli(sx,front+1.4,1.8);
+  shopPts.push({x:sx,z:front+1.4});
+  keeperSpots.push({x:sx-3.6,z:front+0.9,face:0}); // on the spawn side of the door, so he is the first thing you see
+  addBuilding(cx+2,cz-8,20,8,rnd(14,28)); // fill the back of the block so the street still looks built-up
 }
 for(let bi=-5;bi<5;bi++)for(let bj=-5;bj<5;bj++){
-  const cx=bi*ROAD+20,cz=bj*ROAD+20,isShop=(bi===0&&bj===0),isPark=!isShop&&Math.random()<0.12;
+  const cx=bi*ROAD+20,cz=bj*ROAD+20,isShop=(bi===0&&bj===0),isShop2=(bi===0&&bj===-1),isPark=!isShop&&!isShop2&&Math.random()<0.12;
   const slab=new THREE.Mesh(slabGeo,isPark?parkMat:slabMat);slab.position.set(cx,0.15,cz);scene.add(slab);
   if(isShop)addShop(cx,cz);
+  else if(isShop2)addSpawnShop(cx,cz);
   else if(isPark){
     for(let t=0;t<5;t++){
       const tx=cx+rnd(-10,10),tz=cz+rnd(-10,10),s=rnd(0.9,1.4);
@@ -447,6 +474,28 @@ function updatePeople(dt){
     p.g.position.set(p.x,y,p.z);
     p.g.rotation.y=p.horiz?(p.dir>0?Math.PI/2:-Math.PI/2):(p.dir>0?0:Math.PI);
     p.up+=((p.cheer>0?1:0)-p.up)*Math.min(1,dt*10);poseHuman(p.h,Math.sin(p.ph)*0.6,p.up);
+  }
+}
+
+/* ================= SHOPKEEPERS (one outside each shop) ================= */
+const keepers=[];
+(function(){
+  keeperSpots.forEach(function(s){
+    const h=buildHuman(0xff9d2e,0xf2ead8,0x9a6a45,0xbfbfbf);                       // orange kurta, grey hair
+    hpart(hsph(0.215,8,5,Math.PI*0.5),hmat(0xd8362e),0,1.99,0,h.body,1,0.85,1.08);  // red turban
+    hpart(hbox(0.13,0.025,0.03),hmat(0x16120f),0,1.865,0.192,h.body);               // moustache
+    h.g.position.set(s.x,0.3,s.z);h.g.rotation.y=s.face;scene.add(h.g);
+    keepers.push({h:h,x:s.x,z:s.z,face:s.face,up:0,ph:Math.random()*6});
+  });
+})();
+function updateKeepers(dt){
+  const A=actor();
+  for(let i=0;i<keepers.length;i++){
+    const k=keepers[i],dx=A.x-k.x,dz=A.z-k.z,d=Math.hypot(dx,dz);
+    k.h.g.rotation.y+=angDiff(k.h.g.rotation.y,d<30?Math.atan2(dx,dz):k.face)*Math.min(1,dt*5); // turns to watch you
+    k.up+=((d<16&&!shopOpen?1:0)-k.up)*Math.min(1,dt*6);k.ph+=dt*8;                              // waves when you are close
+    poseHuman(k.h,0,0);
+    k.h.a2.rotation.z=k.up*2.3;k.h.f2.rotation.z=k.up*1.1;k.h.a2.rotation.x=Math.sin(k.ph)*0.3*k.up;
   }
 }
 
@@ -750,7 +799,7 @@ function registerImpact(impact,ix,iy,iz){
 }
 
 /* ================= INPUT ================= */
-const keys={};let started=false,shopOpen=false,camMode=0;
+const keys={};let started=false,shopOpen=false,talkOpen=false,camMode=0;
 function isK(){for(let i=0;i<arguments.length;i++)if(keys[arguments[i]])return true;return false;}
 window.addEventListener('keydown',function(e){
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Tab'].indexOf(e.code)>=0)e.preventDefault();
@@ -759,6 +808,11 @@ window.addEventListener('keydown',function(e){
   keys[e.code]=true;
   if(e.code==='Escape'&&shopOpen){toggleShop(false);return;}
   if(e.code==='KeyE'){if(shopOpen)toggleShop(false);else if(nearShop())toggleShop(true);return;}
+  if(talkOpen){ // talking to the shopkeeper: 1 = buy patakas, 2 = bye (number keys must not switch vehicles here)
+    if(e.code==='Digit1'||e.code==='Numpad1')showList();
+    else if(e.code==='Digit2'||e.code==='Numpad2')closeShop(true);
+    return;
+  }
   if(shopOpen)return;
   if(e.code==='KeyX'){toggleOnFoot();return;}
   if(e.code==='KeyC'&&WK.on){WK.cheerT=2.5;return;}
@@ -771,7 +825,7 @@ window.addEventListener('keydown',function(e){
 });
 window.addEventListener('keyup',function(e){keys[e.code]=false;});
 window.addEventListener('blur',function(){for(const k in keys)keys[k]=false;});
-function startGame(){started=true;$('start').style.display='none';initAudio();}
+function startGame(){started=true;$('start').style.display='none';initAudio();toast('A Diwali Shop is right beside you. Press E to talk to the shopkeeper.',4500);}
 $('start').addEventListener('click',startGame);
 window.addEventListener('resize',function(){camera.aspect=window.innerWidth/window.innerHeight;camera.updateProjectionMatrix();renderer.setSize(window.innerWidth,window.innerHeight);pMat.uniforms.uScale.value=window.innerHeight*0.5*PR;});
 
@@ -787,7 +841,7 @@ const SHOP=[
 // one "Reinforce" upgrade per vehicle: each level cuts crash damage by 13% (max level 5 = 65% less damage)
 ORDER.forEach(function(t){SHOP.push({id:'str_'+t,str:t,name:'Reinforce '+DEFS[t].name,desc:'Takes less crash damage',max:5,cost:function(l){return 30+l*25;}});});
 function strMul(type){return 1-0.13*(save.str[type]|0);}
-function nearShop(){const A=actor();return A.y<4&&Math.hypot(A.x-shopPos.x,A.z-shopPos.z)<16;}
+function nearShop(){const A=actor();if(A.y>=4)return false;for(let i=0;i<shopPts.length;i++)if(Math.hypot(A.x-shopPts[i].x,A.z-shopPts[i].z)<16)return true;return false;}
 function renderShop(){
   $('shopcoins').textContent=save.coins;const box=$('shoplist');box.innerHTML='';
   SHOP.forEach(function(it){
@@ -805,8 +859,21 @@ function renderShop(){
     row.appendChild(b);box.appendChild(row);
   });
 }
-function toggleShop(on){shopOpen=on;$('shop').style.display=on?'flex':'none';if(on){renderShop();for(const k in keys)keys[k]=false;}}
-$('shopclose').addEventListener('click',function(){toggleShop(false);});
+// Shopkeeper conversation: greeting -> [Buy patakas | Bye]. "Buy patakas" opens the shop list, "Bye" walks away.
+function toggleShop(on){
+  if(!on){closeShop(false);return;}
+  shopOpen=true;talkOpen=true;for(const k in keys)keys[k]=false;
+  $('talktxt').textContent='Namaste! Why are you here?';
+  $('talk').style.display='block';$('shop').style.display='none';
+}
+function showList(){talkOpen=false;$('talk').style.display='none';$('shop').style.display='flex';renderShop();}
+function closeShop(bye){
+  shopOpen=false;talkOpen=false;$('talk').style.display='none';$('shop').style.display='none';
+  if(bye)toast('Shopkeeper: Come again! Shubh Diwali!',2600);
+}
+$('optBuy').addEventListener('click',showList);
+$('optBye').addEventListener('click',function(){closeShop(true);});
+$('shopclose').addEventListener('click',function(){closeShop(true);});
 function updateHUDcoins(){$('coins').textContent=save.coins;}
 
 /* ================= PLAYER PHYSICS + COLLISIONS ================= */
@@ -1138,7 +1205,7 @@ function frame(ts){
   contactNow=false;
   updatePlayer(dt);
   contactPrev=contactNow;
-  updateWalker(dt);updateDamageFx(dt);updateCrowd(dt);
+  updateWalker(dt);updateDamageFx(dt);updateCrowd(dt);updateKeepers(dt);
   updateAI(dt);updateObstacles(dt);updatePeople(dt);updateCoins(dt);
   updateFireworks(dt);updateFlashes(dt);updateNet(dt);updateEngine();
   blinkT+=dt;if(blinkT>0.6){blinkT=0;const on=(Math.floor(T/0.6)%2)===0;if(window.__lightsA)window.__lightsA.visible=on;if(window.__lightsB)window.__lightsB.visible=!on;}
@@ -1152,7 +1219,7 @@ function frame(ts){
     $('cond').textContent=Math.round(P.hp)+'%';$('cond').style.color=P.hp>60?'#7dff6b':(P.hp>30?'#ffd36b':'#ff6b6b');
     let pt='';
     if(started&&!shopOpen){
-      if(nearShop())pt='Press E to open the Diwali Shop';
+      if(nearShop())pt='Press E to talk to the shopkeeper';
       else if(WK.on&&Math.hypot(WK.x-P.x,WK.z-P.z)<DEFS[P.type].r+4)pt='Press X to get back in';
       else if(!WK.on&&P.hp<=0)pt='Vehicle broken! Press X to get out, or 1-5 for another vehicle';
     }
@@ -1162,7 +1229,7 @@ function frame(ts){
   renderer.render(scene,camera);
 }
 requestAnimationFrame(frame);
-window.__dcs={SHOP:SHOP,WK:WK,crowd:crowd,HPS:HPS,toggleOnFoot:toggleOnFoot,P:P,rockets:rockets,ais:ais,buildings:buildings,obstacles:obstacles,coins:coins,explode:explode,launchRocket:launchRocket,registerImpact:registerImpact,save:save};
+window.__dcs={keepers:keepers,talk:{list:showList,bye:function(){closeShop(true);},open:function(){return talkOpen;}},shopPts:shopPts,SHOP:SHOP,WK:WK,crowd:crowd,HPS:HPS,toggleOnFoot:toggleOnFoot,P:P,rockets:rockets,ais:ais,buildings:buildings,obstacles:obstacles,coins:coins,explode:explode,launchRocket:launchRocket,registerImpact:registerImpact,save:save};
 })();
 </script>
 </body>
