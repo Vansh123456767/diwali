@@ -656,15 +656,6 @@ function sfxBuy(){
   if(!AC)return;const t=AC.currentTime;
   [523,659,784].forEach((f,i)=>{const o=osc('triangle',f,f,t+i*0.08,0.25),g=envGain(t+i*0.08,0.18,0.004,0.22,master);o.connect(g);o.start(t+i*0.08);o.stop(t+i*0.08+0.3);});
 }
-function applyVolume(){if(master)master.gain.value=muted?0:(MOON.on?0.2:0.85);} // thin air on the moon: everything is muffled
-function sfxLiftoff(){
-  if(!AC)return;const t=AC.currentTime;
-  const n=noiseSrc(t,2.4),lp=filt('lowpass',300);lp.frequency.setValueAtTime(300,t);lp.frequency.exponentialRampToValueAtTime(1800,t+2);
-  const g=AC.createGain();g.gain.setValueAtTime(0.0001,t);g.gain.linearRampToValueAtTime(0.5,t+0.5);g.gain.linearRampToValueAtTime(0.0001,t+2.4);
-  n.connect(lp);lp.connect(g);g.connect(master);
-  const o=osc('sawtooth',45,140,t,2.2),og=AC.createGain();og.gain.setValueAtTime(0.0001,t);og.gain.linearRampToValueAtTime(0.18,t+0.6);og.gain.linearRampToValueAtTime(0.0001,t+2.3);
-  o.connect(og);og.connect(master);o.start(t);o.stop(t+2.4);
-}
 function sfxDoor(){
   if(!AC)return;const t=AC.currentTime;
   const o=osc('sine',170,70,t,0.14),g=envGain(t,0.4,0.003,0.14,master);o.connect(g);o.start(t);o.stop(t+0.2);
@@ -677,7 +668,7 @@ function sfxBreak(){ // sad cartoon breakdown: hiss + clunk + sputter
   for(let i=0;i<3;i++){const s=t+0.5+i*0.18,so=osc('sawtooth',90-i*14,50,s,0.12),sg=envGain(s,0.16,0.004,0.12,master);so.connect(sg);so.start(s);so.stop(s+0.16);}
 }
 function updateEngine(){
-  if(!AC||!engOsc)return;const t=AC.currentTime,sp=Math.min(Math.abs(P.speed),90),def=DEFS[P.type];
+  if(!AC||!engOsc)return;const t=AC.currentTime,sp=Math.abs(P.speed),def=DEFS[P.type];
   let f=P.type==='plane'?65+sp*2.0:(P.type==='bike'?55+sp*3.6:(P.type==='truck'?34+sp*3:42+sp*3.2));
   engOsc.type=P.type==='plane'?'square':'sawtooth';
   engOsc.frequency.setTargetAtTime(f,t,0.08);engFilt.frequency.setTargetAtTime(350+sp*14,t,0.1);
@@ -814,8 +805,8 @@ function patakaChain(){
   for(let i=0;i<14;i++)after(i*0.11+Math.random()*0.04,function(){
     const x=fx+rnd(-2.5,2.5),z=fz+rnd(-2.5,2.5);
     if(AC)pataka(AC.currentTime,0.5,panFor(x,z),false);
-    for(let k=0;k<12;k++)spawnP(x,GY()+0.4,z,rnd(-6,6),rnd(5,12),rnd(-6,6),1,0.8,0.35,0.4+Math.random()*0.3,1.5,14,2,0.7);
-    spawnP(x,GY()+0.6,z,0,0,0,1,0.9,0.6,0.08,1,0,0,5);
+    for(let k=0;k<12;k++)spawnP(x,0.4,z,rnd(-6,6),rnd(5,12),rnd(-6,6),1,0.8,0.35,0.4+Math.random()*0.3,1.5,14,2,0.7);
+    spawnP(x,0.6,z,0,0,0,1,0.9,0.6,0.08,1,0,0,5);
   });
 }
 
@@ -883,14 +874,13 @@ window.addEventListener('keydown',function(e){
     return;
   }
   if(shopOpen)return;
-  if(e.code==='KeyR'&&MOON.on){returnToEarth();return;}
   if(e.code==='KeyX'){toggleOnFoot();return;}
   if(e.code==='KeyC'&&WK.on){WK.cheerT=2.5;return;}
   const m=/^Digit([1-5])$/.exec(e.code);if(m){pickVehicle(ORDER[+m[1]-1]);return;}
   if(e.code==='KeyF')volley(false);
   else if(e.code==='KeyG')patakaChain();
   else if(e.code==='KeyV')camMode=(camMode+1)%3;
-  else if(e.code==='KeyM'){muted=!muted;applyVolume();}
+  else if(e.code==='KeyM'){muted=!muted;if(master)master.gain.value=muted?0:0.85;}
   else if(e.code==='KeyH'){const h=$('help');h.style.display=h.style.display==='none'?'block':'none';}
 });
 window.addEventListener('keyup',function(e){keys[e.code]=false;});
@@ -964,7 +954,6 @@ function updatePlayer(dt){
   if(broken){thr=0;steer=0;hb=false;boost=false;}
   let max=def.max*(1-0.4*dmgF)*ADM.speed,acc=def.acc*(1-0.3*dmgF)*ADM.speed;
   if(save.up.nitro&&boost&&!plane&&thr>0){max*=1.3;acc*=1.9;}
-  if(plane&&SPACE.open&&P.y>140){max*=1.6;acc*=1.5;}
   if(thr>0)P.speed+=acc*dt;
   else if(thr<0)P.speed-=(P.speed>0?acc*1.6:acc*0.6)*dt;
   else P.speed*=Math.exp(-0.5*dt);
@@ -975,25 +964,17 @@ function updatePlayer(dt){
   if(!broken&&Math.abs(P.speed)>5)steer=clamp(steer+P.pull*dmgF*0.3,-1,1); // damaged steering drifts to one side
   P.steer+=(steer-P.steer)*Math.min(1,dt*8);
   P.h+=P.steer*def.turn*dt*sf*(hb&&!plane?1.5:1);
+  P.x+=Math.sin(P.h)*P.speed*dt;P.z+=Math.cos(P.h)*P.speed*dt;
   if(plane){
-    const gy=GY(),inSpace=SPACE.open&&P.y-gy>140,fly=P.speed>14,lift=clamp((P.speed-14)/10,0,1);
-    if(hb&&fly)P.y+=(inSpace?40:14)*lift*dt;
-    if(boost&&P.y>0.95+gy)P.y-=(inSpace?40:14)*dt;
-    if((P.y>1.5+gy&&!fly)||(broken&&P.y>0.95+gy))P.y-=(broken?18:10)*dt;
-    updateCeiling(dt,hb&&fly&&!broken);
-    P.y=clamp(P.y,0.95+gy,SPACE.open?100000:gy+150);
-    if(SPACE.open&&P.y<100)SPACE.open=false;
-    if(P.v.prop)P.v.prop.rotation.z+=dt*(15+Math.min(P.speed,120));
-  }else P.y=GY();
-  // move in small sub-steps when going very fast (admin 10x / 100x) so nothing is tunnelled through
-  const mvDist=Math.abs(P.speed)*dt,nSub=mvDist>2.5?clamp(Math.ceil(mvDist/1.5),1,200):1;
-  for(let s=0;s<nSub;s++){
-    P.x+=Math.sin(P.h)*P.speed*dt/nSub;P.z+=Math.cos(P.h)*P.speed*dt/nSub;
-    if(MOON.on){const d=Math.hypot(P.x,P.z);if(d>MOON.r){P.x*=MOON.r/d;P.z*=MOON.r/d;}}
-    else if(SPACE.open){P.x=clamp(P.x,-2600,2600);P.z=clamp(P.z,-2600,2600);}
-    else{P.x=clamp(P.x,-215,215);P.z=clamp(P.z,-215,215);}
-    collidePlayer();
-  }
+    const fly=P.speed>14,lift=clamp((P.speed-14)/10,0,1);
+    if(hb&&fly)P.y+=14*lift*dt;
+    if(boost&&P.y>0.95)P.y-=14*dt;
+    if((P.y>1.5&&!fly)||(broken&&P.y>0.95))P.y-=(broken?18:10)*dt;
+    P.y=clamp(P.y,0.95,150);
+    if(P.v.prop)P.v.prop.rotation.z+=dt*(15+P.speed);
+  }else P.y=0;
+  P.x=clamp(P.x,-215,215);P.z=clamp(P.z,-215,215);
+  collidePlayer();
   const g=P.v.group;g.position.set(P.x,P.y,P.z);g.rotation.y=P.h;
   let roll=-P.steer*clamp(P.speed/20,0,1)*(plane?0.5:(P.type==='bike'||P.type==='scooter'?0.35:0.06));
   if(P.hitT>0){P.hitT-=dt;roll+=Math.sin(P.hitT*40)*0.08*(P.hitT/0.4);}
@@ -1013,22 +994,8 @@ function bounceFrom(nx,nz,ovx,ovz,k){
   }else P.speed*=-0.2;
   return impact;
 }
-function collideMoon(){ // rocks are solid on the moon; everything else is open surface
-  const r=DEFS[P.type].r,fx=Math.sin(P.h),fz=Math.cos(P.h),ix=P.x+fx*r*0.8,iy=P.y+1,iz=P.z+fz*r*0.8;
-  if(P.type==='plane'&&P.y-MOON.y>6)return;
-  for(let i=0;i<MOON.rocks.length;i++){
-    const s=MOON.rocks[i],dx=P.x-s.x,dz=P.z-s.z,rr=r+s.r;
-    if(Math.abs(dx)>rr||Math.abs(dz)>rr)continue;
-    const d=Math.hypot(dx,dz);if(d>=rr)continue;
-    const nx=d>1e-4?dx/d:1,nz=d>1e-4?dz/d:0;
-    P.x+=nx*(rr-d);P.z+=nz*(rr-d);
-    const imp=bounceFrom(nx,nz,0,0,1);
-    if(imp>0)registerImpact(imp,ix,iy,iz);else contactNow=true;
-  }
-}
 function collidePlayer(){
   if(ADM.noclip)return;
-  if(MOON.on){collideMoon();return;}
   const r=DEFS[P.type].r,plane=P.type==='plane',hi=plane&&P.y>4;
   const fx=Math.sin(P.h),fz=Math.cos(P.h);
   const ix=P.x+fx*r*0.8,iy=P.y+1,iz=P.z+fz*r*0.8;
@@ -1067,7 +1034,7 @@ function collidePlayer(){
     const avx=a.horiz?a.dir*a.cur:0,avz=a.horiz?0:a.dir*a.cur;
     const imp=bounceFrom(nx,nz,avx,avz,0.8);
     // knock the traffic vehicle gently away and let it recover
-    const kick=-nx,kickz=-nz,pushV=Math.min(Math.max(imp,1)*0.6,12);
+    const kick=-nx,kickz=-nz,pushV=Math.max(imp,1)*0.6;
     if(a.horiz){a.kx+=kick*pushV;a.kz+=kickz*pushV;}else{a.kx+=kickz*pushV;a.kz+=kick*pushV;}
     a.pause=Math.max(a.pause,1.5);a.spin+=(Math.random()<0.5?-1:1)*Math.min(0.5,imp*0.04);
     if(imp>0)registerImpact(imp,ix,iy,iz);else contactNow=true;
@@ -1079,7 +1046,7 @@ function collidePlayer(){
     const nx=d>1e-4?dx/d:1,nz=d>1e-4?dz/d:0;
     const closing=Math.max(0,-(Math.sin(P.h)*P.speed*nx+Math.cos(P.h)*P.speed*nz));
     P.x+=nx*(rr-d)*0.3;P.z+=nz*(rr-d)*0.3;
-    const cl=Math.min(Math.max(closing,2),30);o.vx=-nx*cl*1.1;o.vz=-nz*cl*1.1;o.spin=rnd(-8,8);
+    o.vx=-nx*Math.max(closing,2)*1.1;o.vz=-nz*Math.max(closing,2)*1.1;o.spin=rnd(-8,8);
     o.x+=-nx*(rr-d)*0.7;o.z+=-nz*(rr-d)*0.7;
     P.speed*=closing>3?0.88:0.97;
     if(closing>0)registerImpact(closing*0.85,ix,iy,iz);else contactNow=true;
@@ -1087,7 +1054,7 @@ function collidePlayer(){
 }
 
 /* ================= ON FOOT, DAMAGE & CROWD ================= */
-const WK={on:false,x:0,y:0,z:0,h:0,sp:0,ph:0,mesh:null,hum:null,up:0,cheerT:0,jy:0,vy:0};
+const WK={on:false,x:0,y:0,z:0,h:0,sp:0,ph:0,mesh:null,hum:null,up:0,cheerT:0};
 const crowd=[];
 let toastUntil=0;
 function actor(){return WK.on?WK:P;}
@@ -1105,7 +1072,7 @@ function blockedAt(x,z,pad){
 // --- getting out / in ---
 function exitVehicle(){
   if(WK.on)return;
-  if(P.type==='plane'&&P.y-GY()>2.5){toast('Land the plane first, then press X',2500);return;}
+  if(P.type==='plane'&&P.y>2.5){toast('Land the plane first, then press X',2500);return;}
   if(Math.abs(P.speed)>7){toast('Slow down before getting out',2200);return;}
   const r=DEFS[P.type].r+1.1,lx=Math.cos(P.h),lz=-Math.sin(P.h);
   const tries=[[lx,lz],[-lx,-lz],[-Math.sin(P.h),-Math.cos(P.h)],[Math.sin(P.h),Math.cos(P.h)]];
@@ -1139,44 +1106,31 @@ function updateWalker(dt){
     run=isK('ShiftLeft','ShiftRight');
   }
   WK.h+=turn*2.8*dt;
-  const target=(fwd>0?(run?9:5):(fwd<0?-2.5:0))*ADM.speed;
+  const target=(fwd>0?(run?9:5):(fwd<0?-2.5:0))*Math.min(ADM.speed,3);
   WK.sp+=(target-WK.sp)*Math.min(1,dt*8);
-  const r=0.5,wdx=Math.sin(WK.h)*WK.sp*dt,wdz=Math.cos(WK.h)*WK.sp*dt,wl=Math.hypot(wdx,wdz),wn=wl>1.2?clamp(Math.ceil(wl/0.8),1,200):1;
-  function pushCircle(ox,oz,rr){const dx=WK.x-ox,dz=WK.z-oz,d=Math.hypot(dx,dz);if(d>=rr)return null;const nx=d>1e-4?dx/d:1,nz=d>1e-4?dz/d:0;WK.x+=nx*(rr-d);WK.z+=nz*(rr-d);return[nx,nz];}
-  for(let s=0;s<wn;s++){ // sub-steps keep a very fast (admin) walker from slipping through walls
-    if(MOON.on){
-      WK.x+=wdx/wn;WK.z+=wdz/wn;const d=Math.hypot(WK.x,WK.z);if(d>MOON.r){WK.x*=MOON.r/d;WK.z*=MOON.r/d;}
-      for(let i=0;i<MOON.rocks.length;i++){const k=MOON.rocks[i];if(Math.abs(WK.x-k.x)<k.r+3&&Math.abs(WK.z-k.z)<k.r+3)pushCircle(k.x,k.z,r+k.r);}
-      pushCircle(P.x,P.z,r+DEFS[P.type].r*0.9);
-      continue;
-    }
-    WK.x=clamp(WK.x+wdx/wn,-215,215);WK.z=clamp(WK.z+wdz/wn,-215,215);
-    for(let i=0;i<buildings.length;i++){
-      const b=buildings[i];
-      if(Math.abs(WK.x-b.x)>b.hw+r+1||Math.abs(WK.z-b.z)>b.hd+r+1)continue;
-      const cx=clamp(WK.x,b.x-b.hw,b.x+b.hw),cz=clamp(WK.z,b.z-b.hd,b.z+b.hd),dx=WK.x-cx,dz=WK.z-cz,d=Math.hypot(dx,dz);
-      if(d>=r)continue;
-      if(d<1e-4){
-        const px=b.hw-Math.abs(WK.x-b.x),pz=b.hd-Math.abs(WK.z-b.z);
-        if(px<pz)WK.x+=(Math.sign(WK.x-b.x)||1)*(px+r);else WK.z+=(Math.sign(WK.z-b.z)||1)*(pz+r);
-      }else{WK.x+=dx/d*(r-d);WK.z+=dz/d*(r-d);}
-    }
-    for(let i=0;i<statics.length;i++){const s2=statics[i];if(Math.abs(WK.x-s2.x)<3&&Math.abs(WK.z-s2.z)<3)pushCircle(s2.x,s2.z,r+s2.r);}
-    pushCircle(P.x,P.z,r+DEFS[P.type].r*0.9);
-    for(let i=0;i<ais.length;i++){const a=ais[i];if(pushCircle(a.x,a.z,r+a.r*0.9))a.pause=Math.max(a.pause,0.6);}
-    for(let i=0;i<obstacles.length;i++){const o=obstacles[i],n=pushCircle(o.x,o.z,r+o.r);if(n){o.vx=-n[0]*2.5;o.vz=-n[1]*2.5;o.spin=rnd(-4,4);}}
+  WK.x=clamp(WK.x+Math.sin(WK.h)*WK.sp*dt,-215,215);WK.z=clamp(WK.z+Math.cos(WK.h)*WK.sp*dt,-215,215);
+  const r=0.5;
+  for(let i=0;i<buildings.length;i++){
+    const b=buildings[i];
+    if(Math.abs(WK.x-b.x)>b.hw+r+1||Math.abs(WK.z-b.z)>b.hd+r+1)continue;
+    const cx=clamp(WK.x,b.x-b.hw,b.x+b.hw),cz=clamp(WK.z,b.z-b.hd,b.z+b.hd),dx=WK.x-cx,dz=WK.z-cz,d=Math.hypot(dx,dz);
+    if(d>=r)continue;
+    if(d<1e-4){
+      const px=b.hw-Math.abs(WK.x-b.x),pz=b.hd-Math.abs(WK.z-b.z);
+      if(px<pz)WK.x+=(Math.sign(WK.x-b.x)||1)*(px+r);else WK.z+=(Math.sign(WK.z-b.z)||1)*(pz+r);
+    }else{WK.x+=dx/d*(r-d);WK.z+=dz/d*(r-d);}
   }
-  if(MOON.on){ // low gravity: Space jumps, and you float back down slowly
-    if(started&&!shopOpen&&isK('Space')&&WK.jy<0.02)WK.vy=4.2;
-    WK.vy-=2.2*dt;WK.jy=Math.max(0,WK.jy+WK.vy*dt);if(WK.jy===0&&WK.vy<0)WK.vy=0;
-  }else{WK.jy=0;WK.vy=0;}
-  WK.y=GY()+WK.jy;
-  WK.ph+=dt*Math.min(Math.abs(WK.sp),14)*1.8;
+  function pushCircle(ox,oz,rr){const dx=WK.x-ox,dz=WK.z-oz,d=Math.hypot(dx,dz);if(d>=rr)return null;const nx=d>1e-4?dx/d:1,nz=d>1e-4?dz/d:0;WK.x+=nx*(rr-d);WK.z+=nz*(rr-d);return[nx,nz];}
+  for(let i=0;i<statics.length;i++){const s=statics[i];if(Math.abs(WK.x-s.x)<3&&Math.abs(WK.z-s.z)<3)pushCircle(s.x,s.z,r+s.r);}
+  pushCircle(P.x,P.z,r+DEFS[P.type].r*0.9);
+  for(let i=0;i<ais.length;i++){const a=ais[i];if(pushCircle(a.x,a.z,r+a.r*0.9))a.pause=Math.max(a.pause,0.6);}
+  for(let i=0;i<obstacles.length;i++){const o=obstacles[i],n=pushCircle(o.x,o.z,r+o.r);if(n){o.vx=-n[0]*2.5;o.vz=-n[1]*2.5;o.spin=rnd(-4,4);}}
+  WK.ph+=dt*Math.abs(WK.sp)*1.8;
   WK.cheerT-=dt;WK.up+=((WK.cheerT>0?1:0)-WK.up)*Math.min(1,dt*9);
   const sw=Math.sin(WK.ph)*0.7*Math.min(1,Math.abs(WK.sp)/3);
   poseHuman(WK.hum,sw,WK.up);
   if(WK.up>0.05){WK.hum.a1.rotation.x=Math.sin(T*9)*0.25*WK.up;WK.hum.a2.rotation.x=-Math.sin(T*9)*0.25*WK.up;}
-  WK.mesh.position.set(WK.x,WK.y+0.3+Math.abs(Math.sin(T*8))*0.1*WK.up,WK.z);WK.mesh.rotation.y=WK.h;
+  WK.mesh.position.set(WK.x,0.3+Math.abs(Math.sin(T*8))*0.1*WK.up,WK.z);WK.mesh.rotation.y=WK.h;
 }
 // --- damage ---
 function damageVehicle(s){
@@ -1204,7 +1158,6 @@ function updateDamageFx(dt){
 }
 // --- bystanders gather around a crashed / broken vehicle (just watching, no one hurt) ---
 function spawnCrowd(n,stay){
-  if(MOON.on)return;
   const def=DEFS[P.type],cols=[0xe8567a,0x4a90e2,0xf5a623,0x7ed321,0xbd10e0,0xf8e71c,0xff6b6b,0x50e3c2];
   for(let k=0;k<n&&crowd.length<24;k++){
     let tx=0,tz=0,ok=false;
@@ -1493,22 +1446,21 @@ function frame(ts){
   contactNow=false;
   updatePlayer(dt);
   contactPrev=contactNow;
-  updateWalker(dt);updateDamageFx(dt);updateCrowd(dt);updateKeepers(dt);updateSpace(dt);
+  updateWalker(dt);updateDamageFx(dt);updateCrowd(dt);updateKeepers(dt);
   updateAI(dt);updateObstacles(dt);updatePeople(dt);updateCoins(dt);
   updateFireworks(dt);updateFlashes(dt);updateNet(dt);updateEngine();
-  blinkT+=dt;if(blinkT>0.6&&!MOON.on){blinkT=0;const on=(Math.floor(T/0.6)%2)===0;if(window.__lightsA)window.__lightsA.visible=on;if(window.__lightsB)window.__lightsB.visible=!on;}
+  blinkT+=dt;if(blinkT>0.6){blinkT=0;const on=(Math.floor(T/0.6)%2)===0;if(window.__lightsA)window.__lightsA.visible=on;if(window.__lightsB)window.__lightsB.visible=!on;}
   updateCamera(dt);
   hudT-=dt;
   if(hudT<=0){
     hudT=0.1;
-    $('spd').textContent=WK.on?'Walking':(P.type==='plane'?'Alt '+Math.round(P.y-GY())+' m · ':'')+Math.round(Math.abs(P.speed)*3.6)+' km/h';
+    $('spd').textContent=WK.on?'Walking':(P.type==='plane'?'Alt '+Math.round(P.y)+' m · ':'')+Math.round(Math.abs(P.speed)*3.6)+' km/h';
     $('veh').textContent=WK.on?'On foot':DEFS[P.type].name+(P.hp<=0?' (broken)':'');
     $('armor').textContent=save.str[P.type]|0;
     $('cond').textContent=Math.round(P.hp)+'%';$('cond').style.color=P.hp>60?'#7dff6b':(P.hp>30?'#ffd36b':'#ff6b6b');
     let pt='';
     if(started&&!shopOpen){
-      if(MOON.on)pt='Press R to fly back to Earth';
-      else if(nearShop())pt='Press E to talk to the shopkeeper';
+      if(nearShop())pt='Press E to talk to the shopkeeper';
       else if(WK.on&&Math.hypot(WK.x-P.x,WK.z-P.z)<DEFS[P.type].r+4)pt='Press X to get back in';
       else if(!WK.on&&P.hp<=0)pt='Vehicle broken! Press X to get out, or 1-5 for another vehicle';
     }
