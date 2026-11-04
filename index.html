@@ -1436,6 +1436,288 @@ function lockAdmin(){
   showAdminState();
 })();
 
+/* ================= WEAPONS (Rivals-style loadout) =================
+   PASTE THIS WHOLE BLOCK just above the line:  /* ================= MAIN LOOP ================= *​/
+   Then in frame() change   updateWalker(dt);updateDamageFx(dt);
+   to                       updateWalker(dt);updateWeapons(dt);updateDamageFx(dt);
+   Controls: Left-click or J = fire, Q = next category, T = next weapon in category, Space = fists double-jump.
+   Everything is cartoon / non-lethal: traffic gets disabled for a few seconds, pedestrians get startled and hop,
+   obstacles get knocked around. Weapons are bought in the Diwali Shop (saved with your coins). Fists are free. */
+const WCAT=['Primary','Secondary','Melee','Utility'];
+// [id, category, name, cost, description, kind (h=hitscan p=projectile c=stream m=melee u=special), params]
+// params: d damage, r range, c cooldown, a auto-fire, s spread, n pellets, kb knockback, v speed, g gravity, e blast radius, fx effect
+const WDEF=[
+['ar',0,'Assault Rifle',60,'Reliable full-auto, good everywhere','h',{d:9,r:90,c:.09,s:.025,a:1,kb:1.5}],
+['flame',0,'Flamethrower',80,'Close-range fire stream, sets targets burning','c',{d:3,r:15,c:.05,a:1,fx:'fire',col:[1,.5,.1]}],
+['perma',0,'Permafrost',80,'Freezing stream, slows and freezes traffic','c',{d:2,r:17,c:.05,a:1,fx:'ice',col:[.5,.9,1]}],
+['gl',0,'Grenade Launcher',110,'Arcing grenades with splash damage','p',{d:40,v:34,g:14,vy:7,c:.9,e:8,life:3,kb:14,col:[1,.7,.3]}],
+['dist',0,'Distortion',120,'Fires a black hole that drags everything to its centre','p',{d:0,v:40,c:2,life:1.2,fx:'hole',col:[.7,.3,1]}],
+['bow',0,'Bow',50,'Arcing arrows','p',{d:32,v:55,g:10,vy:3,c:.7,life:3,kb:6,col:[.9,.8,.6]}],
+['xbow',0,'Crossbow',70,'Flat, fast bolts','p',{d:36,v:85,g:2,c:.9,life:2,kb:8,col:[.8,.8,.9]}],
+['shotgun',0,'Shotgun',90,'8 pellets, brutal up close','h',{d:6,n:8,r:35,c:.8,s:.12,kb:3}],
+['sniper',0,'Sniper',130,'One long-range heavy shot','h',{d:85,r:300,c:1.4,cone:.05,kb:12,col:[1,1,1]}],
+['gunblade',0,'Gunblade',100,'Shoots far, slashes automatically when close','h',{d:7,r:80,c:.14,s:.03,a:1,m:{d:28,r:4.5,arc:1.1,kb:6,c:.4}}],
+['rpg',0,'RPG',150,'Huge rocket explosion','p',{d:70,v:48,c:1.8,e:11,life:3.5,kb:20,col:[1,.6,.2]}],
+['uzi',1,'Uzi',40,'Fast, spraying, great tracking','h',{d:5,r:55,c:.055,s:.07,a:1}],
+['handgun',1,'Handgun',30,'Accurate quick-draw','h',{d:13,r:70,c:.28,s:.02}],
+['revolver',1,'Revolver',60,'Slow, hard-hitting burst taps','h',{d:38,r:90,c:.75,s:.01,kb:6}],
+['warper',1,'Warper',80,'Shoot a portal and teleport to where it lands','p',{d:0,v:60,c:1.2,life:.6,fx:'warp',col:[.5,.6,1]}],
+['exo',1,'Exogun',90,'Energy shot with massive knockback','h',{d:18,r:60,c:.5,kb:16,col:[.4,1,.8]}],
+['daggers',1,'Daggers',55,'Throws a fan of 3 daggers','p',{d:12,v:60,g:2,c:.6,life:1.2,n:3,fan:.18,col:[.9,.9,1]}],
+['shorty',1,'Shorty',45,'Mini shotgun','h',{d:6,n:5,r:20,c:.5,s:.14,kb:3}],
+['epist',1,'Energy Pistols',60,'Twin auto energy pistols','h',{d:6,r:60,c:.12,s:.03,a:1,col:[.4,.6,1]}],
+['sling',1,'Slingshot',25,'Cheap arcing shots','p',{d:10,v:45,g:12,vy:2,c:.45,life:2.5,col:[.8,.7,.5]}],
+['flare',1,'Flare Gun',40,'Sets what it hits on fire','p',{d:5,v:50,g:3,c:1.2,life:2.5,fx:'ignite',col:[1,.3,.2]}],
+['spray',1,'Spray',25,'Paints traffic random colours','c',{d:0,r:11,c:.03,a:1,fx:'paint'}],
+['knife',2,'Knife',30,'Backstabs on traffic are instant knockouts','m',{d:25,r:3,c:.35,arc:.7,back:1}],
+['scythe',2,'Scythe',90,'Each swing dashes you forward','m',{d:30,r:4,c:.7,arc:1.1,dash:9}],
+['katana',2,'Katana',100,'Swing deflects nearby projectiles back','m',{d:28,r:4,c:.5,arc:1,kb:5}],
+['axe',2,'Battle Axe',70,'Slow, heavy swings','m',{d:45,r:3.6,c:.9,arc:1,kb:10}],
+['chainsaw',2,'Chainsaw',120,'Rapid continuous cutting','m',{d:6,r:3.4,c:.08,arc:.9,a:1,kb:1}],
+['fists',2,'Fists',0,'Free. Press Space in the air to double jump (on foot)','m',{d:10,r:2.6,c:.3,arc:1}],
+['shield',2,'Riot Shield',50,'Big shove with a wide arc','m',{d:2,r:3.5,c:.8,arc:1.3,kb:14}],
+['trowel',2,'Trowel',20,'Whacks and drops a lit diya','m',{d:8,r:3,c:.5,arc:.9}],
+['spear',2,'Spear',60,'Long reach, narrow thrust','m',{d:28,r:6.5,c:.7,arc:.35,kb:6}],
+['maul',2,'Maul',110,'Ground slam damages everything around you','m',{d:35,r:7,c:1.4,aoe:1,kb:16}],
+['medkit',3,'Medkit',30,'Repairs 40% of your vehicle','u',{c:1.5}],
+['mine',3,'Subspace Tripmine',60,'Place it; blows when something gets close','u',{c:1}],
+['warpstone',3,'Warpstone',70,'Teleport about 35 m forward','u',{c:3}],
+['flash',3,'Flashbang',45,'Stuns everything nearby','u',{c:4}],
+['freeze',3,'Freeze Ray',80,'Beam that freezes the target','h',{d:2,r:60,c:.5,fx:'ice',col:[.5,.9,1]}],
+['grenade',3,'Grenade',40,'Bounces, then explodes on a timer','p',{d:45,v:22,g:22,vy:9,c:1.2,e:7,life:1.6,fuse:1,kb:14,col:[.6,1,.4]}],
+['jpad',3,'Jump Pad',40,'Place a pad that launches you forward','u',{c:2}],
+['molotov',3,'Molotov',45,'Leaves a burning patch of ground','p',{d:0,v:20,g:20,vy:8,c:1.5,life:2,fx:'molo',col:[1,.5,.1]}],
+['satchel',3,'Satchel',80,'Place it, use again to detonate','u',{c:.4}],
+['smoke',3,'Smoke Grenade',30,'Big smoke cloud','p',{d:0,v:20,g:20,vy:8,c:2,life:2,fx:'smoke',col:[.6,.6,.6]}]
+];
+WDEF.forEach(function(w){SHOP.push({id:'w_'+w[0],name:WCAT[w[1]]+': '+w[2],desc:w[4],max:1,cost:function(){return w[3];}});});
+if(!save.up.w_fists){save.up.w_fists=1;persist();}
+const WS={slot:2,idx:[0,0,0,0],cd:0,mouse:false,was:false,projs:[],holes:[],fires:[],mines:[],pads:[],sat:null,hy:0,hv:0,jumps:0,m:null,hudT:0};
+function ownedIn(s){return WDEF.filter(function(w){return w[1]===s&&save.up['w_'+w[0]];});}
+function cur(){const L=ownedIn(WS.slot);return L.length?L[WS.idx[WS.slot]%L.length]:null;}
+const wHud=document.createElement('div');wHud.className='panel';wHud.style.cssText='right:12px;bottom:46px;text-align:right;font-size:13px';document.body.appendChild(wHud);
+function announce(){const w=cur();toast(w?WCAT[w[1]]+': '+w[2]+' - '+w[4]:'Nothing owned in this category (buy at the Diwali Shop)',2200);}
+window.addEventListener('keydown',function(e){
+  if(!started||shopOpen||kicked||e.repeat)return;
+  const tg=e.target;if(tg&&tg.tagName==='INPUT')return;
+  if(e.code==='KeyQ'){for(let i=1;i<=4;i++){const s=(WS.slot+i)%4;if(ownedIn(s).length){WS.slot=s;break;}}announce();}
+  else if(e.code==='KeyT'){const L=ownedIn(WS.slot);if(L.length){WS.idx[WS.slot]=(WS.idx[WS.slot]+1)%L.length;announce();}}
+  else if(e.code==='Space'&&WK.on){const w=cur();if(w&&w[0]==='fists'&&WS.jumps<2){WS.hv=8;WS.hy=Math.max(WS.hy,.01);WS.jumps++;}}
+});
+renderer.domElement.addEventListener('mousedown',function(e){if(e.button===0&&!(ADM.unlocked&&ADM.del))WS.mouse=true;});
+window.addEventListener('mouseup',function(){WS.mouse=false;});
+
+/* --- helpers --- */
+function tgts(){
+  const a=[];
+  ais.forEach(function(o){a.push({o:o,k:'v',x:o.x,z:o.z,r:o.r+.6});});
+  obstacles.forEach(function(o){a.push({o:o,k:'o',x:o.x,z:o.z,r:o.r+.3});});
+  people.forEach(function(o){a.push({o:o,k:'p',x:o.x,z:o.z,r:.7});});
+  return a;
+}
+function lock(range,cone){ // soft auto-aim: nearest target inside a cone in front of you
+  const A=actor(),fx=Math.sin(A.h),fz=Math.cos(A.h);let best=null,bd=1e9;
+  for(const t of tgts()){const dx=t.x-A.x,dz=t.z-A.z,d=Math.hypot(dx,dz);if(d>range||d<.4)continue;if((dx*fx+dz*fz)/d<Math.cos(cone))continue;if(d<bd){bd=d;best=t;}}
+  let dx=fx,dz=fz;if(best){dx=best.x-A.x;dz=best.z-A.z;const l=Math.hypot(dx,dz)||1;dx/=l;dz/=l;}
+  return{best:best,dx:dx,dz:dz};
+}
+function muz(){const A=actor(),r=WK.on?.7:DEFS[P.type].fz;return{x:A.x+Math.sin(A.h)*r,y:A.y+(WK.on?1.4+WS.hy:DEFS[P.type].sy+.6),z:A.z+Math.cos(A.h)*r};}
+function spk(x,y,z,c,n,sp){for(let i=0;i<n;i++)spawnP(x,y,z,rnd(-sp,sp),rnd(0,sp),rnd(-sp,sp),c[0],c[1],c[2],rnd(.2,.5),2,8,0,.8);}
+function ring(x,z,c){for(let i=0;i<24;i++){const a=i/24*TAU;spawnP(x+Math.cos(a)*2,GY()+.8,z+Math.sin(a)*2,Math.cos(a)*5,3,Math.sin(a)*5,c[0],c[1],c[2],.7,2,0,0,1.2);}}
+function sfxW(k){
+  if(!AC)return;const t=AC.currentTime;
+  if(k===0){const n=noiseSrc(t,.2),f=filt('bandpass',2200,1),g=envGain(t,.25,.01,.15,master);f.frequency.setValueAtTime(2200,t);f.frequency.exponentialRampToValueAtTime(500,t+.15);n.connect(f);f.connect(g);}
+  else pataka(t,k===1?.3:(k===2?.55:.8),0,k>=2);
+}
+function hurt(t,d,nx,nz,kb){
+  const o=t.o;
+  if(t.k==='v'){o.hp=(o.hp==null?60:o.hp)-d;o.kx+=nx*kb;o.kz+=nz*kb;o.pause=Math.max(o.pause,.5);if(o.hp<=0){o.hp=60;o.dis=6;o.pause=Math.max(o.pause,6);}}
+  else if(t.k==='o'){if(kb>0){o.vx+=nx*kb;o.vz+=nz*kb;o.spin=rnd(-8,8);}}
+  else{o.cheer=rnd(.7,1.3);o.off=clamp(o.off+(o.horiz?nz:nx)*Math.min(kb,6)*.5,-5,5);} // pedestrians just get startled
+}
+function status(t,fx,amt){const o=t.o;if(t.k==='v'){if(fx==='fire')o.burn=4;else if(fx==='ice')o.frz=Math.min(4,(o.frz||0)+(amt||1));}else if(t.k==='p')o.cheer=1;}
+function boom(x,y,z,rad,dmg,kb,col){
+  for(const t of tgts()){const dx=t.x-x,dz=t.z-z,d=Math.hypot(dx,dz);if(d<rad+t.r){const f=1-d/(rad+t.r),l=d||1;hurt(t,dmg*f,dx/l,dz/l,kb*f);}}
+  for(let i=0;i<50;i++)spawnP(x,y,z,rnd(-1,1)*rad*2.2,rnd(0,1)*rad*2,rnd(-1,1)*rad*2.2,col[0],col[1],col[2],rnd(.4,.9),2,5,2,1.4);
+  spawnP(x,y,z,0,0,0,1,.9,.6,.3,1,0,0,rad*1.4);
+  burstLight.position.set(x,y,z);burstLight.color.setRGB(col[0],col[1],col[2]);burstLightI=2.2;
+  const A=actor();if(Math.hypot(A.x-x,A.z-z)<40)shake=Math.max(shake,.35);
+  sfxW(3);if(AC)sfxBurst(x,y,z);
+}
+function dash(d){
+  if(WK.on){const nx=WK.x+Math.sin(WK.h)*d,nz=WK.z+Math.cos(WK.h)*d;if(!blockedAt(nx,nz,.6)){WK.x=nx;WK.z=nz;}}
+  else P.speed=Math.min(P.speed+d*2.5,DEFS[P.type].max*1.5);
+}
+
+/* --- firing --- */
+function shootRay(p){
+  const l=lock(p.r,p.cone||.3),m=muz(),c=p.col||[1,.9,.6],n=p.n||1;
+  for(let i=0;i<n;i++){
+    const sa=rnd(-1,1)*(p.s||0),cs=Math.cos(sa),sn=Math.sin(sa),ex=l.dx*cs-l.dz*sn,ez=l.dx*sn+l.dz*cs;
+    let hit=null,hd=p.r;
+    for(const t of tgts()){const tx=t.x-m.x,tz=t.z-m.z,al=tx*ex+tz*ez;if(al<0||al>hd)continue;if(Math.abs(tx*ez-tz*ex)<t.r){hit=t;hd=al;}}
+    for(let s=2;s<hd;s+=2)if(blockedAt(m.x+ex*s,m.z+ez*s,0)){hd=s;hit=null;break;}
+    const st=Math.max(1.5,hd/12);for(let s=2;s<hd;s+=st)spawnP(m.x+ex*s,m.y,m.z+ez*s,0,0,0,c[0],c[1],c[2],.1,0,0,0,.5);
+    spk(m.x+ex*hd,m.y,m.z+ez*hd,c,hit?5:3,4);
+    if(hit){hurt(hit,p.d,ex,ez,p.kb||2);if(p.fx)status(hit,p.fx,1.5);}
+  }
+  shake=Math.max(shake,Math.min(.12,.01+p.d/500));
+}
+function stream(p){
+  const l=lock(p.r,.5),m=muz(),c=p.col||[1,1,1],sp=p.r*1.5;
+  for(let i=0;i<(p.fx==='paint'?2:4);i++){
+    const cc=p.fx==='paint'?[Math.random(),Math.random(),Math.random()]:c;
+    spawnP(m.x,m.y-.2,m.z,(l.dx+rnd(-.15,.15))*sp,rnd(-.5,1.2),(l.dz+rnd(-.15,.15))*sp,cc[0],cc[1],cc[2],.6,0,p.fx==='fire'?-3:0,0,1.1);
+  }
+  const A=actor();
+  for(const t of tgts()){
+    const dx=t.x-A.x,dz=t.z-A.z,d=Math.hypot(dx,dz);if(d>p.r+t.r||d<.01)continue;if((dx*l.dx+dz*l.dz)/d<Math.cos(.45))continue;
+    hurt(t,p.d,dx/d,dz/d,.5);
+    if(p.fx==='paint'){if(t.k==='v'){t.o.v.baseHex=(Math.random()*0xffffff)|0;tintVehicle(t.o.v,0);}}
+    else status(t,p.fx,.15);
+  }
+}
+function throwP(p){
+  const m=muz(),l=lock(80,.3),n=p.n||1;
+  for(let i=0;i<n;i++){
+    const sa=(i-(n-1)/2)*(p.fan||0),c=Math.cos(sa),s=Math.sin(sa),dx=l.dx*c-l.dz*s,dz=l.dx*s+l.dz*c;
+    WS.projs.push({x:m.x,y:m.y,z:m.z,vx:dx*p.v,vy:p.vy||0,vz:dz*p.v,p:p,life:p.life||3});
+  }
+  sfxW(p.e?2:1);
+}
+function melee(id,p){
+  const A=actor(),fx=Math.sin(A.h),fz=Math.cos(A.h),m=muz();sfxW(0);
+  if(p.dash)dash(p.dash);
+  let any=0;
+  for(const t of tgts()){
+    const dx=t.x-A.x,dz=t.z-A.z,d=Math.hypot(dx,dz);if(d>p.r+t.r||d<.01)continue;
+    if(!p.aoe&&(dx*fx+dz*fz)/d<Math.cos(p.arc||1))continue;
+    let dm=p.d;if(p.back&&t.k==='v'&&Math.abs(angDiff(t.o.h,A.h))<1.2)dm=999;
+    hurt(t,dm,dx/d,dz/d,p.kb||4);any++;spk(t.x,m.y,t.z,[1,.9,.6],5,5);
+  }
+  if(p.aoe){ring(A.x,A.z,[1,.7,.3]);shake=Math.max(shake,.45);sfxW(3);}
+  else for(let k=-4;k<=4;k++){const a=A.h+k*(p.arc||1)/4;spawnP(A.x+Math.sin(a)*p.r*.8,m.y-.3,A.z+Math.cos(a)*p.r*.8,0,0,0,.9,.9,1,.18,0,0,0,.8);}
+  if(id==='katana')for(const q of WS.projs)if(Math.hypot(q.x-A.x,q.z-A.z)<7){q.vx*=-1.2;q.vz*=-1.2;spk(q.x,q.y,q.z,[1,1,1],6,5);}
+  if(id==='trowel')spawnP(A.x+fx*2,GY()+.4,A.z+fz*2,0,0,0,1,.6,.1,6,0,0,2,1.6);
+  if(id==='chainsaw'&&any)spk(A.x+fx*2.5,m.y,A.z+fz*2.5,[1,.8,.4],4,6);
+}
+function special(id,p){
+  const A=actor(),fx=Math.sin(A.h),fz=Math.cos(A.h),m=muz();
+  if(id==='medkit'){
+    if(P.hp>=100){toast('Vehicle is already at full condition',1500);WS.cd=0;return;}
+    P.hp=Math.min(100,P.hp+40);HPS[P.type]=P.hp;refreshDamage();spk(P.x,P.y+2,P.z,[.3,1,.4],20,4);sfxBuy();
+  }else if(id==='mine'){WS.mines.push({x:A.x+fx*2.5,z:A.z+fz*2.5,arm:.8,b:0});toast('Tripmine placed',1200);sfxDoor();}
+  else if(id==='warpstone'){
+    let d=36;while(d>2&&blockedAt(A.x+fx*d,A.z+fz*d,1))d-=2;
+    ring(A.x,A.z,[.7,.4,1]);teleport(A.x+fx*d,A.z+fz*d);ring(actor().x,actor().z,[.7,.4,1]);sfxW(1);
+  }else if(id==='flash'){
+    $('fade').style.opacity='.75';setTimeout(function(){$('fade').style.opacity='0';},120);
+    for(const t of tgts())if(Math.hypot(t.x-A.x,t.z-A.z)<28){if(t.k==='v')t.o.pause=Math.max(t.o.pause,3.5);else if(t.k==='p')t.o.cheer=1.5;}
+    spawnP(A.x,m.y,A.z,0,0,0,1,1,1,.4,1,0,0,24);burstLight.position.set(A.x,m.y,A.z);burstLight.color.setRGB(1,1,1);burstLightI=3.5;sfxW(3);
+  }else if(id==='jpad'){WS.pads.push({x:A.x+fx*3,z:A.z+fz*3,t:40,cd:0,b:0});toast('Jump pad placed',1200);sfxDoor();}
+  else if(id==='satchel'){
+    if(WS.sat){boom(WS.sat.x,.8,WS.sat.z,10,70,18,[1,.5,.2]);WS.sat=null;WS.cd=.6;}
+    else{WS.sat={x:A.x+fx*2,z:A.z+fz*2};toast('Satchel placed. Use it again to detonate.',2000);WS.cd=.4;sfxDoor();}
+  }
+}
+function fire(){
+  const w=cur();if(!w||WS.cd>0||shopOpen||talkOpen)return;
+  const id=w[0],k=w[5],p=w[6];WS.cd=p.c||.4;
+  if(k==='h'){
+    if(p.m){const n=lock(p.m.r+1,1.1);if(n.best){melee('gb',p.m);WS.cd=p.m.c;return;}}
+    shootRay(p);sfxW(p.d>=30?2:1);
+  }else if(k==='p')throwP(p);
+  else if(k==='c'){stream(p);if(Math.random()<.2)sfxW(0);}
+  else if(k==='m')melee(id,p);
+  else special(id,p);
+}
+function land(q,t){
+  const p=q.p,fx=p.fx;
+  if(fx==='warp'){ring(P.x,P.z,[.5,.6,1]);teleport(q.x,q.z);ring(q.x,q.z,[.5,.6,1]);return;}
+  if(fx==='hole'){WS.holes.push({x:q.x,z:q.z,t:3.5});return;}
+  if(fx==='molo'){WS.fires.push({x:q.x,z:q.z,t:5,k:0});spk(q.x,GY()+.5,q.z,[1,.5,.1],14,6);sfxW(1);return;}
+  if(fx==='smoke'){for(let i=0;i<60;i++)spawnP(q.x+rnd(-3,3),GY()+rnd(.5,3),q.z+rnd(-3,3),rnd(-1,1),rnd(.2,1),rnd(-1,1),.45,.45,.5,rnd(5,8),.6,0,0,rnd(5,8));return;}
+  if(p.e){boom(q.x,q.y,q.z,p.e,p.d,p.kb||10,p.col||[1,.7,.3]);return;}
+  if(t){const l=Math.hypot(q.vx,q.vz)||1;hurt(t,p.d,q.vx/l,q.vz/l,p.kb||3);if(fx==='ignite')status(t,'fire');}
+  if(fx==='ignite'){burstLight.position.set(q.x,q.y,q.z);burstLight.color.setRGB(1,.3,.2);burstLightI=1.4;}
+  spk(q.x,q.y,q.z,p.col||[1,1,1],8,5);
+}
+
+/* --- per-frame --- */
+function updateWeapons(dt){
+  WS.cd-=dt;
+  const down=WS.mouse||isK('KeyJ'),w=cur();
+  if(started&&!shopOpen&&down&&w&&(!WS.was||w[6].a))fire();
+  WS.was=down;
+  // projectiles
+  for(let i=WS.projs.length-1;i>=0;i--){
+    const q=WS.projs[i],p=q.p;q.life-=dt;q.vy-=(p.g||0)*dt;q.x+=q.vx*dt;q.y+=q.vy*dt;q.z+=q.vz*dt;
+    const c=p.col||[1,1,1];spawnP(q.x,q.y,q.z,0,0,0,c[0],c[1],c[2],.25,0,0,0,.6);
+    let end=q.life<=0,hit=null;
+    if(q.y<=GY()+.15){if(p.fuse){q.y=GY()+.15;q.vy=Math.abs(q.vy)*.3;q.vx*=.85;q.vz*=.85;}else end=true;}
+    if(!end&&q.y<30&&blockedAt(q.x,q.z,0)){if(p.fuse){q.x-=q.vx*dt;q.z-=q.vz*dt;q.vx*=-.3;q.vz*=-.3;}else end=true;}
+    if(!end&&!p.fuse)for(const t of tgts()){if(q.y<4&&Math.hypot(t.x-q.x,t.z-q.z)<t.r+.5){hit=t;end=true;break;}}
+    if(end){WS.projs.splice(i,1);land(q,hit);}
+  }
+  // black holes
+  for(let i=WS.holes.length-1;i>=0;i--){
+    const h=WS.holes[i];h.t-=dt;
+    for(let k=0;k<4;k++){const a=T*6+k*1.57,r=rnd(3,12);spawnP(h.x+Math.cos(a)*r,GY()+1.5+rnd(0,2),h.z+Math.sin(a)*r,-Math.sin(a)*8,0,Math.cos(a)*8,.6,.2,1,.5,1,0,0,1.2);}
+    spawnP(h.x,GY()+2,h.z,0,0,0,.5,.1,1,.1,1,0,0,5);
+    for(const t of tgts()){
+      const dx=h.x-t.x,dz=h.z-t.z,d=Math.hypot(dx,dz);if(d>16||d<.5)continue;
+      if(t.k==='v'){t.o.kx+=dx/d*40*dt;t.o.kz+=dz/d*40*dt;t.o.pause=Math.max(t.o.pause,.2);}
+      else if(t.k==='o'){t.o.vx+=dx/d*40*dt;t.o.vz+=dz/d*40*dt;}
+      else{t.o.off=clamp(t.o.off+(t.o.horiz?dz:dx)/d*4*dt,-5,5);t.o.cheer=.5;}
+    }
+    if(h.t<=0){WS.holes.splice(i,1);boom(h.x,2,h.z,6,10,6,[.6,.2,1]);}
+  }
+  // molotov fire patches
+  for(let i=WS.fires.length-1;i>=0;i--){
+    const f=WS.fires[i];f.t-=dt;f.k-=dt;
+    for(let k=0;k<3;k++)spawnP(f.x+rnd(-4,4),GY()+.3,f.z+rnd(-4,4),0,rnd(2,5),0,1,rnd(.3,.6),.1,.7,1,-2,2,1.3);
+    if(f.k<=0){f.k=.3;for(const t of tgts())if(Math.hypot(t.x-f.x,t.z-f.z)<5+t.r){hurt(t,4,0,0,0);status(t,'fire');}}
+    if(f.t<=0)WS.fires.splice(i,1);
+  }
+  // tripmines
+  for(let i=WS.mines.length-1;i>=0;i--){
+    const m=WS.mines[i];m.arm-=dt;m.b-=dt;if(m.b<=0){m.b=.5;spawnP(m.x,GY()+.3,m.z,0,0,0,1,.1,.1,.3,0,0,0,1.2);}
+    if(m.arm>0)continue;
+    for(const t of tgts())if(Math.hypot(t.x-m.x,t.z-m.z)<4+t.r){WS.mines.splice(i,1);boom(m.x,.6,m.z,9,60,16,[1,.4,.2]);break;}
+  }
+  if(WS.sat)spawnP(WS.sat.x,GY()+.4,WS.sat.z,0,0,0,1,.8,.1,.15,0,0,0,1);
+  // jump pads
+  const A=actor();
+  for(let i=WS.pads.length-1;i>=0;i--){
+    const p=WS.pads[i];p.t-=dt;p.cd-=dt;p.b-=dt;
+    if(p.b<=0){p.b=.2;ring(p.x,p.z,[1,.9,.2]);}
+    if(p.cd<=0&&Math.hypot(A.x-p.x,A.z-p.z)<3.2){
+      p.cd=1;
+      if(WK.on){WS.hv=11;WS.hy=Math.max(WS.hy,.01);WS.jumps=1;dash(6);}
+      else{P.speed=Math.min(P.speed+22,DEFS[P.type].max*1.7);if(P.type==='plane')P.y+=3;}
+      sfxBuy();
+    }
+    if(p.t<=0)WS.pads.splice(i,1);
+  }
+  // status effects on traffic
+  for(const a of ais){
+    if(a.burn>0){a.burn-=dt;a.hp=(a.hp==null?60:a.hp)-6*dt;spawnP(a.x+rnd(-1,1),1.8,a.z+rnd(-1,1),0,rnd(1,3),0,1,rnd(.3,.6),.1,.5,1,-2,2,1.3);if(a.hp<=0){a.hp=60;a.dis=6;a.pause=Math.max(a.pause,6);}}
+    if(a.frz>0){a.frz-=dt;a.pause=Math.max(a.pause,.15);if(Math.random()<dt*20)spawnP(a.x+rnd(-1,1),rnd(.5,2),a.z+rnd(-1,1),0,1,0,.5,.9,1,.5,1,0,2,1);}
+    if(a.dis>0){a.dis-=dt;if(Math.random()<dt*15)spawnP(a.x+rnd(-.5,.5),1.8,a.z+rnd(-.5,.5),rnd(-.4,.4),rnd(1.5,3),rnd(-.4,.4),.3,.3,.3,1.3,.6,-.4,0,2.6);}
+  }
+  // double-jump hop (fists), held weapon model, HUD
+  if(WS.hv||WS.hy){WS.hv-=24*dt;WS.hy=Math.max(0,WS.hy+WS.hv*dt);if(WS.hy===0&&WS.hv<0){WS.hv=0;WS.jumps=0;}if(WK.on)WK.mesh.position.y+=WS.hy;}
+  if(WK.on&&WK.hum){
+    if(!WS.m){WS.m=new THREE.Mesh(new THREE.BoxGeometry(.1,.1,1),new THREE.MeshLambertMaterial({color:0x333333}));WK.hum.body.add(WS.m);WS.m.position.set(.38,1.1,.45);}
+    WS.m.visible=!!w;if(w){WS.m.material.color.setHex([0x333a44,0x55606e,0xc9ccd4,0xffa21f][w[1]]);WS.m.scale.set(1,1,[1.3,.5,1.5,.4][w[1]]);}
+  }else if(WS.m)WS.m.visible=false;
+  WS.hudT-=dt;
+  if(WS.hudT<=0){
+    WS.hudT=.15;
+    wHud.innerHTML=w?'<b>'+WCAT[w[1]]+'</b>: '+w[2]+(WS.cd>0?' <span style="opacity:.6">...</span>':' <span style="color:#7dff6b">ready</span>')+'<br><small style="opacity:.75">Click/J fire &middot; Q category &middot; T weapon</small>':'<b>No weapon</b><br><small>Q switches category</small>';
+  }
+}
+
 /* ================= MAIN LOOP ================= */
 let last=0,blinkT=0,hudT=0;
 setVehicle('car');updateHUDcoins();
@@ -1446,7 +1728,7 @@ function frame(ts){
   contactNow=false;
   updatePlayer(dt);
   contactPrev=contactNow;
-  updateWalker(dt);updateDamageFx(dt);updateCrowd(dt);updateKeepers(dt);
+  updateWalker(dt);updateWeapons(dt);updateDamageFx(dt);updateCrowd(dt);updateKeepers(dt);
   updateAI(dt);updateObstacles(dt);updatePeople(dt);updateCoins(dt);
   updateFireworks(dt);updateFlashes(dt);updateNet(dt);updateEngine();
   blinkT+=dt;if(blinkT>0.6){blinkT=0;const on=(Math.floor(T/0.6)%2)===0;if(window.__lightsA)window.__lightsA.visible=on;if(window.__lightsB)window.__lightsB.visible=!on;}
